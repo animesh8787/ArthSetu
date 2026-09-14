@@ -1,5 +1,7 @@
 import axios, { AxiosError } from "axios";
-import { clearToken, getToken } from "./auth";
+import { signOut } from "firebase/auth";
+import { getIdToken } from "./auth";
+import { auth } from "./firebase";
 
 const baseURL = import.meta.env.VITE_API_BASE_URL ?? "/api/v1";
 
@@ -33,9 +35,9 @@ function normalizeError(error: unknown): ApiError {
   return { status: 0, message: "Unexpected error" };
 }
 
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   config.headers.set("X-Request-Id", Math.random().toString(36).slice(2, 10));
-  const token = getToken();
+  const token = await getIdToken();
   if (token) config.headers.set("Authorization", `Bearer ${token}`);
   return config;
 });
@@ -44,14 +46,10 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     const normalized = normalizeError(error);
-    // An expired/invalid token: drop it and bounce to login (but not while
-    // already on the login screen, and not for the login request itself).
-    if (
-      normalized.status === 401 &&
-      !String(error?.config?.url).includes("/auth/login") &&
-      window.location.pathname !== "/login"
-    ) {
-      clearToken();
+    // An expired/invalid token, or a verified identity with no local
+    // profile: sign out and bounce to login (but not while already there).
+    if (normalized.status === 401 && window.location.pathname !== "/login") {
+      signOut(auth);
       window.location.assign(
         `/login?next=${encodeURIComponent(
           window.location.pathname + window.location.search,

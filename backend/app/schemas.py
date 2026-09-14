@@ -20,25 +20,17 @@ Role = Literal["admin", "reviewer", "viewer"]
 
 class UserOut(BaseModel):
     id: str
-    username: str
     full_name: str
-    email: Optional[str] = None
+    email: str
     role: Role
     is_active: bool
+    is_bootstrap: bool = False
     created_at: Optional[datetime] = None
 
 
-class LoginResponse(BaseModel):
-    access_token: str
-    token_type: str = "bearer"
-    expires_in: int
-    user: UserOut
-
-
 class UserCreate(BaseModel):
-    username: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9._-]+$")
+    email: str = Field(min_length=3, max_length=255)
     full_name: str = Field(min_length=1, max_length=120)
-    email: Optional[str] = None
     role: Role = "viewer"
     password: str = Field(min_length=8, max_length=128)
 
@@ -51,11 +43,6 @@ class UserUpdate(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    new_password: str = Field(min_length=8, max_length=128)
-
-
-class ChangePasswordRequest(BaseModel):
-    current_password: str
     new_password: str = Field(min_length=8, max_length=128)
 
 

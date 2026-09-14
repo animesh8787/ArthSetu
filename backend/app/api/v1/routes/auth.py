@@ -1,5 +1,8 @@
 # ============================================================
 # FILE: backend/app/api/v1/routes/auth.py
+# Sign-in itself happens client-side against Firebase; this router only
+# covers the local ArthSetu profile (role, active status) layered on top
+# of a verified Firebase identity, plus admin-driven user management.
 # ============================================================
 
 from __future__ import annotations
@@ -7,16 +10,11 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import AdminUser, CurrentUser
-from backend.app.core.config import settings
-from backend.app.core.security import create_access_token
 from backend.app.db.session import get_db
 from backend.app.schemas import (
-    ChangePasswordRequest,
-    LoginResponse,
     PasswordResetRequest,
     UserCreate,
     UserOut,
@@ -29,41 +27,9 @@ router = APIRouter()
 DbSession = Annotated[Session, Depends(get_db)]
 
 
-@router.post("/login", response_model=LoginResponse)
-def login(
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    db: DbSession,
-):
-    user = user_service.authenticate(db, form_data.username, form_data.password)
-    if not user:
-        raise HTTPException(status_code=401, detail="Incorrect username or password")
-
-    role = user.role.value if hasattr(user.role, "value") else str(user.role)
-    token = create_access_token(subject=user.username, role=role)
-    return LoginResponse(
-        access_token=token,
-        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=UserOut(**user_service.to_out(user)),
-    )
-
-
 @router.get("/me", response_model=UserOut)
 def me(current_user: CurrentUser):
     return UserOut(**user_service.to_out(current_user))
-
-
-@router.post("/change-password", status_code=204)
-def change_password(
-    body: ChangePasswordRequest,
-    current_user: CurrentUser,
-    db: DbSession,
-):
-    try:
-        user_service.change_own_password(
-            db, current_user, body.current_password, body.new_password
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
 
 
 # ------------------------------------------------------------
@@ -80,11 +46,10 @@ def create_user(body: UserCreate, _: AdminUser, db: DbSession):
     try:
         user = user_service.create_user(
             db,
-            username=body.username,
+            email=body.email,
             full_name=body.full_name,
             password=body.password,
             role=body.role,
-            email=body.email,
         )
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc))

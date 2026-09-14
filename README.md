@@ -587,8 +587,12 @@ python -m uvicorn backend.app.main:app --reload
 - API: `http://localhost:8000`  ·  Swagger: `http://localhost:8000/docs`
 - DB defaults to `sqlite:///./arthsetu_dev.db`; set `DATABASE_URL` (e.g. Postgres)
   in `backend/.env` to override. Schema is managed by Alembic (`alembic upgrade head`).
-- **Set `SECRET_KEY` in `backend/.env` for any non-local run**
-  (`python -c "import secrets; print(secrets.token_urlsafe(48))"`).
+- **Sign-in needs a Firebase Auth target.** For local dev, run the
+  [Firebase Auth Emulator](https://firebase.google.com/docs/emulator-suite)
+  (`npm install -g firebase-tools`, then `firebase emulators:start --only auth`)
+  and set `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` in `backend/.env` —
+  see `backend/.env.example`. **For any non-local run, set
+  `FIREBASE_CREDENTIALS_JSON`** to a real Firebase service-account JSON.
 
 ## Frontend
 
@@ -608,11 +612,13 @@ docker compose up --build
 docker compose exec backend python -m backend.seed_dev --reset   # optional: synthetic demo data
 ```
 Runs Postgres + the API (`:8000`, migrations applied on start) + the
-frontend behind nginx (`:8080`). Works with zero config for a trial run —
-a fresh container bootstraps one admin login (`admin` / `arthsetu-admin`
-by default). For a real deployment, copy `.env.docker.example` to `.env`
-and set `APP_ENV=production` plus real secrets; the backend refuses to
-start in production with the default `SECRET_KEY` or bootstrap password.
+frontend behind nginx (`:8080`). Works with zero extra config for a trial
+run (beyond the Firebase Auth Emulator noted above) — a fresh container
+bootstraps one admin login (`admin@arthsetu.local` / `arthsetu-admin` by
+default). For a real deployment, copy `.env.docker.example` to `.env` and
+set `APP_ENV=production` plus real secrets; the backend refuses to start in
+production without a real Firebase project configured or with the default
+bootstrap password.
 See [`Docs/API_CONTRACT.md`](Docs/API_CONTRACT.md#running-with-docker) for
 the full hardening notes (non-root containers, health checks, resource
 limits, nginx security headers).
@@ -626,15 +632,17 @@ step-by-step in
 
 ## Auth
 
-Every API call except `/health` and `/auth/login` needs a bearer token.
-Roles: **admin** > **reviewer** > **viewer** (see [`Docs/API_CONTRACT.md`](Docs/API_CONTRACT.md)).
-The seeder creates demo accounts:
+Sign-in happens client-side via **Firebase Authentication** (email +
+password) — every API call except `/health` needs a
+`Bearer <firebase-id-token>` header. Roles: **admin** > **reviewer** >
+**viewer** (see [`Docs/API_CONTRACT.md`](Docs/API_CONTRACT.md)). The dev
+seeder (`backend/seed_dev.py`) creates these demo accounts in Firebase:
 
-| Username | Password | Role |
+| Email | Password | Role |
 |---|---|---|
-| `admin` | `arthsetu-admin` | admin |
-| `reviewer` | `arthsetu-review` | reviewer |
-| `officer` | `arthsetu-view` | viewer |
+| `admin@arthsetu.local` | `arthsetu-admin` | admin |
+| `reviewer@arthsetu.local` | `arthsetu-review` | reviewer |
+| `officer@arthsetu.local` | `arthsetu-view` | viewer |
 
 ## Tests
 

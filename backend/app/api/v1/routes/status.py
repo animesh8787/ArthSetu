@@ -43,6 +43,6 @@ def run_all_status(admin: AdminUser, db: Session = Depends(get_db)):
     job via GET /jobs/{id}.
     """
     job = job_runner.submit_job(
-        db, JobTypeEnum.STATUS_RUN_ALL, payload={}, created_by=admin.username
+        db, JobTypeEnum.STATUS_RUN_ALL, payload={}, created_by=admin.email
     )
     return job_runner.to_dict(job)

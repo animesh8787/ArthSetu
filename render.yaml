@@ -12,7 +12,9 @@
 #
 # CORS_ORIGINS below still needs your actual Vercel URL filled in by hand
 # once you know it, and BOOTSTRAP_ADMIN_PASSWORD's generated value has to
-# be read from the dashboard after first deploy.
+# be read from the dashboard after first deploy. FIREBASE_CREDENTIALS_JSON,
+# FIREBASE_PROJECT_ID and BOOTSTRAP_ADMIN_EMAIL all need a Firebase project
+# to exist first — see the Firebase-swap plan's "manual steps" section.
 #
 # Free plan caveat: the service spins down after ~15 min idle and takes
 # ~50s to wake on the next request. Fine for a demo; upgrade to a paid
@@ -32,13 +34,15 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false
-      - key: SECRET_KEY
-        generateValue: true
-      - key: BOOTSTRAP_ADMIN_USERNAME
-        value: admin
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false # paste the full contents of your Firebase service-account JSON here
+      - key: FIREBASE_PROJECT_ID
+        sync: false # your Firebase project id
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        sync: false # a real mailbox you control — this becomes the first admin login
       - key: BOOTSTRAP_ADMIN_PASSWORD
         generateValue: true
       - key: CORS_ORIGINS
-        value: https://arthsetu.vercel.app
+        value: https://arth-setu-six.vercel.app
       - key: WEB_CONCURRENCY
         value: "1"

@@ -9,9 +9,12 @@ All enum values are **lower_snake_case** strings (`active`, `dormant`, `closed`,
 
 ## Authentication
 
-Every endpoint **except `GET /health` and `POST /auth/login`** requires a
-`Authorization: Bearer <token>` header. Missing/expired token → `401`;
-insufficient role → `403`.
+Sign-in happens client-side against **Firebase Authentication** (email +
+password) — the backend never sees a password, only a Firebase ID token.
+Every endpoint **except `GET /health`** requires an
+`Authorization: Bearer <firebase-id-token>` header. Missing/invalid/expired
+token → `401`; a verified token with no matching ArthSetu profile, or
+insufficient role, or a disabled account → `403`.
 
 Roles (each includes the ones below it): **admin** > **reviewer** > **viewer**.
 
@@ -29,27 +32,27 @@ Roles (each includes the ones below it): **admin** > **reviewer** > **viewer**.
 | Matching weights & calibration (`/matching/weights`, `/matching/calibration`) | admin |
 | User management (`/auth/users*`) | admin |
 
-`POST /api/v1/auth/login` — form-encoded (`application/x-www-form-urlencoded`):
-```
-username=admin&password=...
-```
+`GET /api/v1/auth/me` → the local ArthSetu profile for the verified Firebase user:
 ```json
-{ "access_token": "eyJ...", "token_type": "bearer", "expires_in": 28800,
-  "user": { "id": "...", "username": "admin", "full_name": "System Administrator",
-            "email": null, "role": "admin", "is_active": true, "created_at": "..." } }
+{ "id": "...", "full_name": "System Administrator", "email": "admin@example.com",
+  "role": "admin", "is_active": true, "is_bootstrap": true, "created_at": "..." }
 ```
 
-`GET /api/v1/auth/me` → the `user` object above.
-`POST /api/v1/auth/change-password` → `{ "current_password": "...", "new_password": "..." }` → `204`.
+There is no backend login or change-password endpoint — sign-in, sign-out,
+and a user changing their own password all go through the Firebase client
+SDK directly. Forgotten passwords use Firebase's `sendPasswordResetEmail`.
 
-**Admin only:**
+**Admin only** (these still go through the backend, which uses the Firebase
+Admin SDK server-side so an admin can set a colleague's password directly):
 `GET /api/v1/auth/users` → `[UserOut, ...]`
-`POST /api/v1/auth/users` → `{ username, full_name, email?, role, password }` → `201 UserOut`
+`POST /api/v1/auth/users` → `{ email, full_name, role, password }` → `201 UserOut`
 `PATCH /api/v1/auth/users/{id}` → `{ full_name?, email?, role?, is_active? }` → `UserOut`
 `POST /api/v1/auth/users/{id}/reset-password` → `{ "new_password": "..." }` → `UserOut`
 
-Seeded demo accounts: `admin` / `arthsetu-admin`, `reviewer` / `arthsetu-review`,
-`reviewer2` / `arthsetu-review`, `officer` / `arthsetu-view`.
+There are no seeded demo accounts baked into the code anymore — the bootstrap
+admin (`BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD`) and, for local
+dev, `backend/seed_dev.py`'s four demo users are created directly in Firebase
+(the Auth Emulator in dev, a real project in production) on first boot.
 
 ---
 
@@ -296,6 +299,11 @@ DB defaults to `sqlite:///./arthsetu_dev.db`. Override with `DATABASE_URL`
 (e.g. Postgres) in `backend/.env`. Schema is managed by Alembic
 (`alembic upgrade head`); the dev seeder also creates tables directly.
 
+Sign-in needs a Firebase Auth target: run the Firebase Auth Emulator
+(`npm install -g firebase-tools`, then `firebase emulators:start --only auth`)
+and set `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` in `backend/.env` — see
+`backend/.env.example`.
+
 ## Running with Docker
 
 ```bash
@@ -304,23 +312,27 @@ docker compose up --build
 Brings up Postgres, the API (`alembic upgrade head` runs on container start)
 on `:8000`, and the frontend behind nginx on `:8080` (nginx proxies `/api/`
 to the backend container, so the SPA needs no CORS config). With no `.env`
-file this runs in `APP_ENV=development` with insecure demo defaults, so it
-works out of the box for a trial. On first boot, if the `user_account`
-table is empty, the API creates one admin account from
-`BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` (default
-`admin` / `arthsetu-admin`) — that's the login for a fresh container.
-Load the synthetic demo dataset on top of it if you want one:
+file this runs in `APP_ENV=development` with insecure demo defaults, but
+sign-in still needs a Firebase Auth target (the emulator, normally — see
+**Local development** above) since there's no local-only auth bypass. On
+first boot, if the `user_account` table is empty, the API creates one admin
+account — in Firebase and locally — from `BOOTSTRAP_ADMIN_EMAIL` /
+`BOOTSTRAP_ADMIN_PASSWORD` (default `admin@arthsetu.local` /
+`arthsetu-admin`) — that's the login for a fresh container. Load the
+synthetic demo dataset on top of it if you want one:
 ```bash
 docker compose exec backend python -m backend.seed_dev --reset
 ```
 
 **For a real deployment**, copy `.env.docker.example` to `.env` (repo root)
-and fill in `SECRET_KEY`, `BOOTSTRAP_ADMIN_PASSWORD`, and `POSTGRES_PASSWORD`,
+and fill in `FIREBASE_CREDENTIALS_JSON`, `FIREBASE_PROJECT_ID`,
+`BOOTSTRAP_ADMIN_EMAIL`, `BOOTSTRAP_ADMIN_PASSWORD`, and `POSTGRES_PASSWORD`,
 then set `APP_ENV=production`. The backend refuses to start in production
-with the default secret key or bootstrap password still in place — a
-deliberate fail-fast guard (`backend/app/core/config.py`), not a bug, so
-double-check `docker compose logs backend` if the container exits
-immediately. Hardening baked into the images:
+without a real Firebase project configured or with the default bootstrap
+password still in place — a deliberate fail-fast guard
+(`backend/app/core/config.py`), not a bug, so double-check
+`docker compose logs backend` if the container exits immediately. Hardening
+baked into the images:
 - backend and frontend containers run as non-root users
 - both have `HEALTHCHECK`s wired into compose's `depends_on: condition: service_healthy`
 - Postgres isn't published to the host — only reachable from the backend over the compose network
@@ -353,26 +365,40 @@ list needs the frontend's URL, the frontend's build needs the backend's URL
    as-is for `DATABASE_URL`; SQLAlchemy defaults to the psycopg2 driver
    already in `backend/requirements.txt`, no `+psycopg2` suffix needed.
 
+1a. **Firebase setup.** Create a project at
+   [console.firebase.google.com](https://console.firebase.google.com),
+   enable the **Email/Password** sign-in provider (Authentication → Sign-in
+   method). Generate a service-account key (Project settings → Service
+   accounts → Generate new private key) — its JSON becomes
+   `FIREBASE_CREDENTIALS_JSON` in step 2. Register a Web app (Project
+   settings → Your apps) to get the `apiKey`/`authDomain`/`projectId`/`appId`
+   values needed for `VITE_FIREBASE_*` in step 3.
+
 2. **Backend on Render.** Dashboard → New → Blueprint → point it at this
    repo. Render reads `render.yaml` and, because `DATABASE_URL` has no
    `value`/`generateValue`, prompts you to paste it in — use the Neon
-   connection string from step 1. `SECRET_KEY` and `BOOTSTRAP_ADMIN_PASSWORD`
-   are auto-generated (read the actual values off the service's
-   Environment tab after it deploys — you'll need the password to log in).
-   `CORS_ORIGINS` in the blueprint is a placeholder; you'll come back to it
-   in step 4. Note the service's `https://arthsetu-backend.onrender.com`
-   -style URL once it's live and healthy. (Free plan: spins down after
-   ~15 min idle, ~50s cold start on the next request — fine for a demo.)
+   connection string from step 1. `BOOTSTRAP_ADMIN_PASSWORD` is
+   auto-generated (read the actual value off the service's Environment tab
+   after it deploys — you'll need it to log in); `FIREBASE_CREDENTIALS_JSON`,
+   `FIREBASE_PROJECT_ID`, and `BOOTSTRAP_ADMIN_EMAIL` need a Firebase
+   project to exist first (see **Firebase setup** below) and are pasted in
+   by hand. `CORS_ORIGINS` in the blueprint is a placeholder; you'll come
+   back to it in step 4. Note the service's
+   `https://arthsetu-backend.onrender.com`-style URL once it's live and
+   healthy. (Free plan: spins down after ~15 min idle, ~50s cold start on
+   the next request — fine for a demo.)
 
 3. **Frontend on Vercel.** Import the repo, set **Root Directory** to
    `frontend`. Framework preset (Vite) and build command are
-   auto-detected. Add one environment variable before the first build:
-   `VITE_API_BASE_URL=https://<your-render-url>/api/v1` — Vite bakes this
-   into the JS bundle at build time, so it can't be changed later without a
-   rebuild. [`frontend/vercel.json`](../frontend/vercel.json) adds the SPA
-   rewrite (client-side routes 404 on refresh without it) and the same
-   security headers nginx sets in the Docker path. Note the resulting
-   `https://<project>.vercel.app` URL.
+   auto-detected. Add environment variables before the first build:
+   `VITE_API_BASE_URL=https://<your-render-url>/api/v1` plus
+   `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`,
+   `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID` from step 1a — Vite
+   bakes these into the JS bundle at build time, so they can't be changed
+   later without a rebuild. [`frontend/vercel.json`](../frontend/vercel.json)
+   adds the SPA rewrite (client-side routes 404 on refresh without it) and
+   the same security headers nginx sets in the Docker path. Note the
+   resulting `https://<project>.vercel.app` URL.
 
 4. **Close the loop.** Back on Render, update `CORS_ORIGINS` on
    `arthsetu-backend` to the real Vercel URL from step 3 (changing an env
@@ -380,8 +406,8 @@ list needs the frontend's URL, the frontend's build needs the backend's URL
    (`<project>-<hash>.vercel.app`) won't match unless added too —
    `CORS_ORIGINS` is an exact comma-separated list, no wildcards.
 
-5. **Log in** with `BOOTSTRAP_ADMIN_USERNAME` / the generated
-   `BOOTSTRAP_ADMIN_PASSWORD` from step 1. `backend/seed_dev.py` (drops
+5. **Log in** with `BOOTSTRAP_ADMIN_EMAIL` (set in step 2) / the generated
+   `BOOTSTRAP_ADMIN_PASSWORD` from step 2. `backend/seed_dev.py` (drops
    tables, installs the publicly-known demo accounts below) refuses to run
    at all while `APP_ENV=production` — exactly the case here — so it can't
    be run by habit against a real deployment:
@@ -398,5 +424,6 @@ list needs the frontend's URL, the frontend's build needs the backend's URL
    python -m backend.seed_dev --reset --force-production-seed
    ```
    which wipes and recreates every table, including `user_account` —
-   replacing the bootstrap admin with the seeder's own demo accounts
-   (`admin` / `arthsetu-admin`, etc., see **Authentication** above).
+   replacing the bootstrap admin with the seeder's own demo accounts (see
+   `DEMO_USERS` in `backend/seed_dev.py`; edit the placeholder emails there
+   first if seeding a real Firebase project rather than the emulator).

@@ -7,17 +7,24 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import {
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 import { authApi } from "@/api/endpoints";
-import { clearToken, getToken, setToken } from "@/lib/auth";
+import { auth } from "@/lib/firebase";
 import type { Role, User } from "@/types/api";
 
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   refresh: () => Promise<void>;
   can: (min: Role) => boolean;
+  resetPassword: (email: string) => Promise<void>;
 }
 
 const RANK: Record<Role, number> = { viewer: 0, reviewer: 1, admin: 2 };
@@ -28,37 +35,72 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const hydrate = useCallback(async () => {
-    if (!getToken()) {
-      setUser(null);
-      setLoading(false);
-      return;
-    }
+  // Fetches the local ArthSetu profile for the currently signed-in Firebase
+  // user. Throws (and clears `user`) if there isn't one — e.g. a Firebase
+  // account that exists but was never provisioned by an admin.
+  const syncProfile = useCallback(async () => {
     try {
-      setUser(await authApi.me());
-    } catch {
-      clearToken();
+      const profile = await authApi.me();
+      setUser(profile);
+      return profile;
+    } catch (err) {
       setUser(null);
-    } finally {
-      setLoading(false);
+      throw err;
     }
   }, []);
 
   useEffect(() => {
-    hydrate();
-  }, [hydrate]);
+    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+      if (!fbUser) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      try {
+        await syncProfile();
+      } catch {
+        // Verified Firebase session but no ArthSetu profile (or the backend
+        // was unreachable) — sign out of Firebase too so state stays
+        // consistent rather than "signed in" with no usable profile.
+        await signOut(auth);
+      } finally {
+        setLoading(false);
+      }
+    });
+    return unsubscribe;
+  }, [syncProfile]);
 
-  const login = useCallback(async (username: string, password: string) => {
-    const res = await authApi.login(username, password);
-    setToken(res.access_token);
-    setUser(res.user);
-  }, []);
+  const login = useCallback(
+    async (email: string, password: string) => {
+      await signInWithEmailAndPassword(auth, email, password);
+      try {
+        await syncProfile();
+      } catch (err) {
+        await signOut(auth);
+        throw err;
+      }
+    },
+    [syncProfile],
+  );
 
   const logout = useCallback(() => {
-    clearToken();
-    setUser(null);
+    signOut(auth);
     window.location.assign("/login");
   }, []);
+
+  const refresh = useCallback(async () => {
+    if (!auth.currentUser) return;
+    try {
+      await syncProfile();
+    } catch {
+      await signOut(auth);
+    }
+  }, [syncProfile]);
+
+  const resetPassword = useCallback(
+    (email: string) => sendPasswordResetEmail(auth, email),
+    [],
+  );
 
   const can = useCallback(
     (min: Role) => !!user && RANK[user.role] >= RANK[min],
@@ -66,8 +108,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo(
-    () => ({ user, loading, login, logout, refresh: hydrate, can }),
-    [user, loading, login, logout, hydrate, can],
+    () => ({ user, loading, login, logout, refresh, can, resetPassword }),
+    [user, loading, login, logout, refresh, can, resetPassword],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

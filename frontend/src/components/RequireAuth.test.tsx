@@ -21,8 +21,8 @@ vi.mock("@/context/AuthContext", () => ({
 import { RequireAuth } from "./RequireAuth";
 
 const viewer: User = {
-  id: "1", username: "v", full_name: "V", email: null,
-  role: "viewer", is_active: true, created_at: null,
+  id: "1", full_name: "V", email: "v@test.local",
+  role: "viewer", is_active: true, is_bootstrap: false, created_at: null,
 };
 
 function renderAt(path: string, role?: Role) {

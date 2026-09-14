@@ -8,50 +8,53 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from backend.app.core.security import hash_password, verify_password
+from backend.app.core import firebase
+from backend.app.core.config import settings
 from backend.app.db.enums import UserRole
 from backend.app.db.models.user import User
 
 
-def get_by_username(db: Session, username: str) -> User | None:
-    return db.query(User).filter(User.username == username).first()
-
-
-def authenticate(db: Session, username: str, password: str) -> User | None:
-    user = get_by_username(db, username)
-    if not user or not user.is_active:
-        return None
-    if not verify_password(password, user.hashed_password):
-        return None
-    return user
+def get_by_email(db: Session, email: str) -> User | None:
+    return db.query(User).filter(User.email == email).first()
 
 
 def list_users(db: Session) -> list[User]:
-    return db.query(User).order_by(User.username.asc()).all()
+    return db.query(User).order_by(User.email.asc()).all()
 
 
 def create_user(
     db: Session,
     *,
-    username: str,
+    email: str,
     full_name: str,
     password: str,
     role: str = "viewer",
-    email: str | None = None,
 ) -> User:
-    if get_by_username(db, username):
-        raise ValueError("Username already exists")
-    user = User(
-        username=username,
-        full_name=full_name,
-        email=email,
-        role=UserRole(role),
-        hashed_password=hash_password(password),
-        is_active=True,
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+    if get_by_email(db, email):
+        raise ValueError("Email already exists")
+
+    try:
+        record = firebase.create_user(email=email, password=password)
+    except firebase.auth.EmailAlreadyExistsError:
+        raise ValueError("Email already exists")
+
+    try:
+        user = User(
+            email=email,
+            full_name=full_name,
+            role=UserRole(role),
+            firebase_uid=record.uid,
+            is_active=True,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+    except Exception:
+        # Local row failed — don't leave an orphaned Firebase account behind,
+        # or retrying with the same email hits EmailAlreadyExistsError forever.
+        db.rollback()
+        firebase.delete_user(record.uid)
+        raise
     return user
 
 
@@ -66,18 +69,23 @@ def _get(db: Session, user_id: str) -> User:
     return user
 
 
-BOOTSTRAP_USERNAME = "admin"
+def _is_bootstrap(user: User) -> bool:
+    return user.email.lower() == settings.BOOTSTRAP_ADMIN_EMAIL.lower()
 
 
 def update_user(db: Session, user_id: str, **changes) -> User:
     user = _get(db, user_id)
 
-    # The bootstrap admin must always remain an active admin.
-    if user.username == BOOTSTRAP_USERNAME:
+    # The bootstrap admin must always remain an active admin, reachable at
+    # the email BOOTSTRAP_ADMIN_EMAIL is set to — so its email can't move
+    # either, or the bootstrap check below would stop recognising it.
+    if _is_bootstrap(user):
         if changes.get("is_active") is False:
             raise ValueError("The bootstrap admin cannot be disabled")
         if changes.get("role") not in (None, "admin"):
             raise ValueError("The bootstrap admin cannot be demoted")
+        if changes.get("email") not in (None, user.email):
+            raise ValueError("The bootstrap admin's email cannot be changed")
 
     if changes.get("role") is not None:
         user.role = UserRole(changes["role"])
@@ -91,29 +99,18 @@ def update_user(db: Session, user_id: str, **changes) -> User:
 
 def set_password(db: Session, user_id: str, new_password: str) -> User:
     user = _get(db, user_id)
-    user.hashed_password = hash_password(new_password)
-    db.commit()
-    db.refresh(user)
+    firebase.update_user(user.firebase_uid, password=new_password)
     return user
-
-
-def change_own_password(
-    db: Session, user: User, current_password: str, new_password: str
-) -> None:
-    if not verify_password(current_password, user.hashed_password):
-        raise ValueError("Current password is incorrect")
-    user.hashed_password = hash_password(new_password)
-    db.commit()
 
 
 def to_out(user: User) -> dict:
     role = user.role.value if hasattr(user.role, "value") else str(user.role)
     return {
         "id": str(user.id),
-        "username": user.username,
         "full_name": user.full_name,
         "email": user.email,
         "role": role,
         "is_active": user.is_active,
+        "is_bootstrap": _is_bootstrap(user),
         "created_at": user.created_at,
     }

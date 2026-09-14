@@ -115,7 +115,7 @@ def approve_review(
 ):
     try:
         return approve_review_case(
-            db=db, review_id=review_id, reviewer_id=reviewer.username
+            db=db, review_id=review_id, reviewer_id=reviewer.email
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
@@ -129,7 +129,7 @@ def reject_review(
 ):
     try:
         return reject_review_case(
-            db=db, review_id=review_id, reviewer_id=reviewer.username
+            db=db, review_id=review_id, reviewer_id=reviewer.email
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

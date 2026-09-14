@@ -76,7 +76,7 @@ class TestWeightsApi:
         assert resp.status_code == 200
         body = resp.json()
         assert body["pin_weight"] == 0.2
-        assert body["updated_by"] == "admin"
+        assert body["updated_by"] == "admin@test.local"
 
     def test_put_weights_rejects_out_of_range_values(self, client, seed, token):
         resp = client.put(

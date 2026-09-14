@@ -74,7 +74,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                       {user.full_name}
                     </div>
                     <div className="text-[12px] text-ink-subtle">
-                      @{user.username} · {titleCase(user.role)}
+                      {user.email} · {titleCase(user.role)}
                     </div>
                   </div>
                   <button

@@ -7,29 +7,33 @@ A throwaway SQLite database is configured via env vars *before* any
 
 from __future__ import annotations
 
+import itertools
 import os
 import tempfile
 from collections.abc import Iterator
+from types import SimpleNamespace
 
 import pytest
 
 _TMP_DB = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _TMP_DB.close()
 os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB.name}"
-os.environ["SECRET_KEY"] = "test-secret-key-not-for-production"
-os.environ["ACCESS_TOKEN_EXPIRE_MINUTES"] = "60"
 # Background jobs run inline (no worker thread) so tests are deterministic —
 # a job's result is available the instant submit_job() returns.
 os.environ["JOBS_SYNC"] = "1"
+# Matches the `seed` fixture's admin row so its is_bootstrap flag comes out
+# true, the same as it would against a real BOOTSTRAP_ADMIN_EMAIL.
+os.environ["BOOTSTRAP_ADMIN_EMAIL"] = "admin@test.local"
 
-import bcrypt  # noqa: E402
+from typing import Annotated  # noqa: E402
+
+from fastapi import Depends, HTTPException, status  # noqa: E402
+from fastapi.security import HTTPAuthorizationCredentials  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402
 
-# Speed up the suite: minimum bcrypt work factor is plenty for tests.
-_orig_gensalt = bcrypt.gensalt
-bcrypt.gensalt = lambda rounds=4, prefix=b"2b": _orig_gensalt(4, prefix)
-
+from backend.app.api import deps  # noqa: E402
+from backend.app.core import firebase  # noqa: E402
 from backend.app.db import models  # noqa: E402,F401  (register tables)
 from backend.app.db.base import Base  # noqa: E402
 from backend.app.db.enums import (  # noqa: E402
@@ -45,7 +49,6 @@ from backend.app.db.models.source_record import SourceRecord  # noqa: E402
 from backend.app.db.models.source_system import SourceSystem  # noqa: E402
 from backend.app.db.models.user import User  # noqa: E402
 from backend.app.db.session import SessionLocal, engine  # noqa: E402
-from backend.app.core.security import hash_password  # noqa: E402
 from backend.app.services.scoring import normalize_address  # noqa: E402
 from backend.app.main import app  # noqa: E402
 
@@ -83,22 +86,38 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+_TEST_UIDS = {
+    "admin": "test-uid-admin",
+    "reviewer": "test-uid-reviewer",
+    "viewer": "test-uid-viewer",
+    # A verified identity with deliberately no matching user_account row —
+    # for testing that get_current_user 403s rather than auto-provisioning.
+    "ghost": "test-uid-ghost",
+}
+_TEST_EMAILS = {
+    "admin": "admin@test.local",
+    "reviewer": "reviewer@test.local",
+    "viewer": "viewer@test.local",
+    "ghost": "ghost@test.local",
+}
+
+
 @pytest.fixture
 def seed(db: Session) -> dict:
     """A small, deterministic dataset covering every role and match outcome."""
 
     users = {
         "admin": User(
-            username="admin", full_name="Admin", role=UserRole.ADMIN,
-            hashed_password=hash_password("adminpass"), is_active=True,
+            email=_TEST_EMAILS["admin"], full_name="Admin", role=UserRole.ADMIN,
+            firebase_uid=_TEST_UIDS["admin"], is_active=True,
         ),
         "reviewer": User(
-            username="rev", full_name="Reviewer", role=UserRole.REVIEWER,
-            hashed_password=hash_password("revpass"), is_active=True,
+            email=_TEST_EMAILS["reviewer"], full_name="Reviewer", role=UserRole.REVIEWER,
+            firebase_uid=_TEST_UIDS["reviewer"], is_active=True,
         ),
         "viewer": User(
-            username="view", full_name="Viewer", role=UserRole.VIEWER,
-            hashed_password=hash_password("viewpass"), is_active=True,
+            email=_TEST_EMAILS["viewer"], full_name="Viewer", role=UserRole.VIEWER,
+            firebase_uid=_TEST_UIDS["viewer"], is_active=True,
         ),
     }
     db.add_all(users.values())
@@ -187,22 +206,75 @@ def seed(db: Session) -> dict:
     }
 
 
+class _FakeFirebaseAdmin:
+    """In-memory stand-in for the bits of the Admin SDK user_service.py calls,
+    so tests never touch a real Firebase project or the Auth Emulator."""
+
+    def __init__(self) -> None:
+        self._uid_by_email: dict[str, str] = {}
+        self._counter = itertools.count(1)
+
+    def create_user(self, *, email: str, password: str) -> SimpleNamespace:
+        if email in self._uid_by_email:
+            raise firebase.auth.EmailAlreadyExistsError("email already exists", None, None)
+        uid = f"fake-uid-{next(self._counter)}"
+        self._uid_by_email[email] = uid
+        return SimpleNamespace(uid=uid)
+
+    def update_user(self, uid: str, **changes) -> SimpleNamespace:
+        return SimpleNamespace(uid=uid)
+
+    def get_user_by_email(self, email: str) -> SimpleNamespace:
+        uid = self._uid_by_email.get(email)
+        if uid is None:
+            raise firebase.auth.UserNotFoundError("no such user", None, None)
+        return SimpleNamespace(uid=uid)
+
+    def delete_user(self, uid: str) -> None:
+        self._uid_by_email = {e: u for e, u in self._uid_by_email.items() if u != uid}
+
+
+@pytest.fixture(autouse=True)
+def fake_firebase_admin(monkeypatch: pytest.MonkeyPatch) -> _FakeFirebaseAdmin:
+    fake = _FakeFirebaseAdmin()
+    monkeypatch.setattr(firebase, "create_user", fake.create_user)
+    monkeypatch.setattr(firebase, "update_user", fake.update_user)
+    monkeypatch.setattr(firebase, "get_user_by_email", fake.get_user_by_email)
+    monkeypatch.setattr(firebase, "delete_user", fake.delete_user)
+    return fake
+
+
+def _fake_verified_claims(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(deps.bearer_scheme)],
+) -> dict[str, str]:
+    """Replaces real Firebase token verification in tests: a fake bearer
+    token of the form "fake:<role>" resolves straight to that role's fixed
+    {uid, email} (matching the `seed` fixture's rows); a missing header or
+    anything else 401s — same shape as a real missing/invalid token would."""
+    role = creds.credentials.removeprefix("fake:") if creds else ""
+    if role not in _TEST_UIDS:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Could not validate credentials")
+    return {"uid": _TEST_UIDS[role], "email": _TEST_EMAILS[role]}
+
+
+@pytest.fixture(autouse=True)
+def _fake_auth_dependency() -> Iterator[None]:
+    app.dependency_overrides[deps.get_verified_firebase_claims] = _fake_verified_claims
+    yield
+    app.dependency_overrides.pop(deps.get_verified_firebase_claims, None)
+
+
 @pytest.fixture
-def token(client: TestClient):
-    """token('admin'|'reviewer'|'viewer') -> Authorization header dict."""
-    creds = {
-        "admin": ("admin", "adminpass"),
-        "reviewer": ("rev", "revpass"),
-        "viewer": ("view", "viewpass"),
-    }
+def token():
+    """token('admin'|'reviewer'|'viewer') -> Authorization header dict.
+
+    The role is encoded directly in the (fake) bearer token, so — unlike a
+    single shared dependency override — headers for different roles
+    obtained earlier in a test stay valid regardless of what's called in
+    between (matches how the old real-JWT fixture of the same name behaved).
+    """
 
     def _for(role: str = "admin") -> dict[str, str]:
-        username, password = creds[role]
-        resp = client.post(
-            "/api/v1/auth/login",
-            data={"username": username, "password": password},
-        )
-        assert resp.status_code == 200, resp.text
-        return {"Authorization": f"Bearer {resp.json()['access_token']}"}
+        return {"Authorization": f"Bearer fake:{role}"}
 
     return _for

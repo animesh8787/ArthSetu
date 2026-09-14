@@ -52,7 +52,7 @@ def _create_then_queue_matching(
             db,
             JobTypeEnum.CSV_MATCH,
             payload={"source_record_ids": report.new_record_ids},
-            created_by=admin.username,
+            created_by=admin.email,
         )
         report.job_id = str(job.id)
         # In JOBS_SYNC mode the job has already finished by the time
@@ -168,6 +168,6 @@ def process_pending(
 ):
     """Queue matching over every unresolved source record (runs off-thread)."""
     job = job_runner.submit_job(
-        db, JobTypeEnum.PROCESS_PENDING, payload={"limit": limit}, created_by=admin.username
+        db, JobTypeEnum.PROCESS_PENDING, payload={"limit": limit}, created_by=admin.email
     )
     return job_runner.to_dict(job)

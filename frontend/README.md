@@ -13,6 +13,12 @@ The dev server proxies `/api/*` to `http://localhost:8000` (the backend), so
 start the API first (`python -m uvicorn backend.app.main:app --reload` from the
 repo root). Override the target with `VITE_API_TARGET`.
 
+Sign-in is via Firebase Authentication — copy `.env.example` to `.env` and
+fill in `VITE_FIREBASE_*` from your Firebase project's Web app config (see
+`Docs/API_CONTRACT.md`), or point `VITE_FIREBASE_AUTH_EMULATOR_HOST` at a
+locally running Firebase Auth Emulator. Without either, the app still
+boots and shows the login page, but sign-in fails.
+
 For a deployed build, set `VITE_API_BASE_URL` to the API origin + prefix
 (e.g. `https://api.example/api/v1`).
 
@@ -35,8 +41,8 @@ Testing Library, config in `vite.config.ts`, setup in `src/test/setup.ts`.
 ```
 src/
 ├── api/endpoints.ts     typed API client (one layer, matches Docs/API_CONTRACT.md)
-├── context/AuthContext  useAuth(): user, login, logout, can(role)
-├── lib/                 axios instance (+ bearer token), query client, auth storage, formatters
+├── context/AuthContext  useAuth(): user, login, logout, can(role), resetPassword
+├── lib/                 firebase app/auth, axios instance (+ bearer token), query client, formatters
 ├── types/api.ts         response types mirrored from the contract
 ├── components/
 │   ├── ui/              Button, Card, Badge, Table, Field, StatCard, States, …
@@ -47,9 +53,11 @@ src/
 └── pages/               one file per route (LoginPage, UsersPage, …)
 ```
 
-Auth: `AuthContext` hydrates from `/auth/me` on load; the axios interceptor
-attaches the bearer token and redirects to `/login` on `401`. `can("reviewer")`
-etc. gate role-specific actions. `RequireAuth` guards the routes.
+Auth: sign-in/out goes through the Firebase client SDK (`src/lib/firebase.ts`);
+`AuthContext` fetches the local profile from `/auth/me` whenever Firebase
+reports a signed-in user. The axios interceptor attaches the Firebase ID
+token and redirects to `/login` on `401`. `can("reviewer")` etc. gate
+role-specific actions. `RequireAuth` guards the routes.
 
 Data fetching goes through TanStack Query; components never call axios directly.
 Design tokens live as CSS variables in `src/index.css` and are surfaced to

@@ -11,11 +11,18 @@ Run from the repo root:
 
 Refuses to run at all when APP_ENV=production (drops tables, installs
 publicly-known demo passwords) unless --force-production-seed is passed.
+
+Requires a Firebase Auth target to create the demo users against — either
+the local emulator (FIREBASE_AUTH_EMULATOR_HOST, the normal dev case; run
+`firebase emulators:start --only auth` first) or a real project via
+FIREBASE_CREDENTIALS_JSON. The placeholder emails below (@arthsetu.local)
+are fine for the emulator; edit DEMO_USERS if seeding a real project.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import random
 import string
 import uuid
@@ -38,17 +45,19 @@ from backend.app.db.enums import (
     ReviewCaseStatusEnum,
     UserRole,
 )
-from backend.app.core.security import hash_password
+from backend.app.core import firebase
+from backend.app.core.config import settings
 from backend.app.services.matching_engine import process_source_record
 from backend.app.services.scoring import normalize_address
 from backend.app.services.status_engine import infer_business_status
 
-# username, full name, role, password
+# email, full name, role, password — edit the emails if seeding a real
+# Firebase project rather than the local emulator.
 DEMO_USERS = [
-    ("admin", "System Administrator", UserRole.ADMIN, "arthsetu-admin"),
-    ("reviewer", "Priya Menon", UserRole.REVIEWER, "arthsetu-review"),
-    ("reviewer2", "Rohit Sharma", UserRole.REVIEWER, "arthsetu-review"),
-    ("officer", "Anjali Rao", UserRole.VIEWER, "arthsetu-view"),
+    ("admin@arthsetu.local", "System Administrator", UserRole.ADMIN, "arthsetu-admin"),
+    ("reviewer@arthsetu.local", "Priya Menon", UserRole.REVIEWER, "arthsetu-review"),
+    ("reviewer2@arthsetu.local", "Rohit Sharma", UserRole.REVIEWER, "arthsetu-review"),
+    ("officer@arthsetu.local", "Anjali Rao", UserRole.VIEWER, "arthsetu-view"),
 ]
 
 SEED = 42
@@ -220,25 +229,40 @@ def reset(force: bool = False) -> None:
     Base.metadata.create_all(bind=engine)
 
 
+def _require_firebase_target() -> None:
+    if os.environ.get("FIREBASE_AUTH_EMULATOR_HOST") or settings.FIREBASE_CREDENTIALS_JSON:
+        return
+    raise SystemExit(
+        "\nNo Firebase Auth target configured: set FIREBASE_AUTH_EMULATOR_HOST "
+        "(run `firebase emulators:start --only auth` for local dev) or "
+        "FIREBASE_CREDENTIALS_JSON to seed a real project.\n"
+    )
+
+
 def seed_users(db) -> None:
+    _require_firebase_target()
     created = 0
-    for username, full_name, role, password in DEMO_USERS:
-        if db.query(User).filter(User.username == username).first():
+    for email, full_name, role, password in DEMO_USERS:
+        if db.query(User).filter(User.email == email).first():
             continue
+        try:
+            record = firebase.get_user_by_email(email)
+        except firebase.auth.UserNotFoundError:
+            record = firebase.create_user(email=email, password=password)
         db.add(
             User(
-                username=username,
+                email=email,
                 full_name=full_name,
                 role=role,
-                hashed_password=hash_password(password),
+                firebase_uid=record.uid,
                 is_active=True,
             )
         )
         created += 1
     db.commit()
     print(f"[+] users            : {created} created ({len(DEMO_USERS)} total)")
-    for username, _fn, role, password in DEMO_USERS:
-        print(f"      {username:10s} / {password:16s} ({role.value})")
+    for email, _fn, role, password in DEMO_USERS:
+        print(f"      {email:24s} / {password:16s} ({role.value})")
 
 
 def seed(force: bool = False) -> None:

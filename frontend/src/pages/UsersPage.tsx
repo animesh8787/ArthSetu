@@ -101,14 +101,14 @@ export function UsersPage() {
             </thead>
             <tbody>
               {data?.map((u) => {
-                const isSelf = u.username === me?.username;
-                const isBootstrap = u.username === "admin";
+                const isSelf = u.id === me?.id;
+                const isBootstrap = u.is_bootstrap;
                 return (
                   <Tr key={u.id}>
                     <Td>
                       <div className="font-medium text-ink">{u.full_name}</div>
                       <div className="font-mono text-[12px] text-ink-subtle">
-                        @{u.username}
+                        {u.email}
                         {isSelf && " · you"}
                       </div>
                     </Td>
@@ -141,7 +141,7 @@ export function UsersPage() {
                           size="sm"
                           onClick={() => {
                             const pw = window.prompt(
-                              `New password for @${u.username} (min 8 chars):`,
+                              `New password for ${u.email} (min 8 chars):`,
                             );
                             if (pw && pw.length >= 8)
                               resetPw.mutate({ id: u.id, pw });
@@ -184,7 +184,6 @@ export function UsersPage() {
 function CreateUserForm({ onDone }: { onDone: () => void }) {
   const { notify } = useToast();
   const [form, setForm] = useState({
-    username: "",
     full_name: "",
     email: "",
     role: "viewer" as Role,
@@ -194,14 +193,13 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
   const create = useMutation({
     mutationFn: () =>
       authApi.createUser({
-        username: form.username.trim(),
         full_name: form.full_name.trim(),
-        email: form.email.trim() || undefined,
+        email: form.email.trim(),
         role: form.role,
         password: form.password,
       }),
     onSuccess: (u) => {
-      notify("success", `Created @${u.username}`);
+      notify("success", `Created ${u.email}`);
       onDone();
     },
     onError: (e) =>
@@ -218,16 +216,6 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
         }}
       >
         <div>
-          <Label htmlFor="nu-username">Username</Label>
-          <Input
-            id="nu-username"
-            value={form.username}
-            onChange={(e) => setForm({ ...form, username: e.target.value })}
-            required
-            minLength={3}
-          />
-        </div>
-        <div>
           <Label htmlFor="nu-name">Full name</Label>
           <Input
             id="nu-name"
@@ -237,12 +225,13 @@ function CreateUserForm({ onDone }: { onDone: () => void }) {
           />
         </div>
         <div>
-          <Label htmlFor="nu-email">Email (optional)</Label>
+          <Label htmlFor="nu-email">Email</Label>
           <Input
             id="nu-email"
             type="email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
+            required
           />
         </div>
         <div>

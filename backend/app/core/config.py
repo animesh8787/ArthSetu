@@ -1,7 +1,6 @@
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-_INSECURE_SECRET_KEY = "dev-insecure-change-me-in-production"
 _INSECURE_BOOTSTRAP_PASSWORD = "arthsetu-admin"
 
 
@@ -26,15 +25,18 @@ class Settings(BaseSettings):
     JOBS_SYNC: bool = False
     JOBS_MAX_WORKERS: int = 2
 
-    # --- Auth -------------------------------------------------------------
-    # MUST be overridden in any non-local environment. Generate with:
-    #   python -c "import secrets; print(secrets.token_urlsafe(48))"
-    SECRET_KEY: str = _INSECURE_SECRET_KEY
-    JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours
+    # --- Auth (Firebase) ---------------------------------------------------
+    # Paste the full contents of a Firebase service-account JSON here in any
+    # non-local environment. Left empty locally, where FIREBASE_AUTH_EMULATOR_HOST
+    # (set by `firebase emulators:start`) is used instead — firebase-admin
+    # picks that up on its own, no credentials needed against the emulator.
+    FIREBASE_CREDENTIALS_JSON: str = ""
+    # Used to initialise the Admin SDK against the emulator (any placeholder
+    # value works there) and must match the real project id in production.
+    FIREBASE_PROJECT_ID: str = "arthsetu-dev"
 
     # First-run bootstrap admin (created by the seeder / on empty user table).
-    BOOTSTRAP_ADMIN_USERNAME: str = "admin"
+    BOOTSTRAP_ADMIN_EMAIL: str = "admin@arthsetu.local"
     BOOTSTRAP_ADMIN_PASSWORD: str = _INSECURE_BOOTSTRAP_PASSWORD
 
     model_config = SettingsConfigDict(
@@ -50,12 +52,13 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _refuse_insecure_production_config(self) -> "Settings":
         """Fail fast rather than silently serve a production deployment
-        with the dev SECRET_KEY or bootstrap admin password still in place."""
+        with no real Firebase project or the dev bootstrap admin password
+        still in place."""
         if self.APP_ENV.lower() == "production":
-            if self.SECRET_KEY == _INSECURE_SECRET_KEY:
+            if not self.FIREBASE_CREDENTIALS_JSON:
                 raise ValueError(
-                    "SECRET_KEY must be overridden when APP_ENV=production "
-                    "(python -c \"import secrets; print(secrets.token_urlsafe(48))\")"
+                    "FIREBASE_CREDENTIALS_JSON must be set when APP_ENV=production "
+                    "(paste the Firebase service-account JSON)"
                 )
             if self.BOOTSTRAP_ADMIN_PASSWORD == _INSECURE_BOOTSTRAP_PASSWORD:
                 raise ValueError(

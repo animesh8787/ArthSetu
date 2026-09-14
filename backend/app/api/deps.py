@@ -5,19 +5,21 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 
-import jwt
 from fastapi import Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from backend.app.core.security import decode_access_token
+from backend.app.core import firebase
 from backend.app.db.enums import UserRole
 from backend.app.db.models.user import User
 from backend.app.db.session import get_db
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+# auto_error=False: a missing header should 401 like an invalid one, not the
+# library's default 403 — the frontend treats 401 (not 403) as "not signed
+# in, go to /login", reserving 403 for "signed in but not allowed".
+bearer_scheme = HTTPBearer(auto_error=False)
 
 _CREDENTIALS_EXC = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED,
@@ -26,21 +28,37 @@ _CREDENTIALS_EXC = HTTPException(
 )
 
 
-def get_current_user(
-    token: Annotated[str, Depends(oauth2_scheme)],
-    db: Annotated[Session, Depends(get_db)],
-) -> User:
+def get_verified_firebase_claims(
+    creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+) -> dict[str, Any]:
+    """Verifies the bearer token against Firebase and returns its claims.
+
+    Kept as its own dependency (rather than inlined into get_current_user)
+    so tests can override just this seam via app.dependency_overrides,
+    without needing a real Firebase project or the Auth Emulator.
+    """
+    if creds is None:
+        raise _CREDENTIALS_EXC
     try:
-        payload = decode_access_token(token)
-        username = payload.get("sub")
-        if not username:
-            raise _CREDENTIALS_EXC
-    except jwt.PyJWTError:
+        return firebase.verify_id_token(creds.credentials)
+    except Exception:  # noqa: BLE001 — any firebase_admin.auth.* verification error
         raise _CREDENTIALS_EXC
 
-    user = db.query(User).filter(User.username == username).first()
-    if user is None:
+
+def get_current_user(
+    claims: Annotated[dict[str, Any], Depends(get_verified_firebase_claims)],
+    db: Annotated[Session, Depends(get_db)],
+) -> User:
+    uid = claims.get("uid")
+    if not uid:
         raise _CREDENTIALS_EXC
+
+    user = db.query(User).filter(User.firebase_uid == uid).first()
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This Firebase account has no ArthSetu profile — contact an administrator.",
+        )
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

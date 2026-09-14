@@ -76,7 +76,7 @@ def test_review_list_and_approve_flow(client, seed, token):
         headers=token("admin"),
         params={"entity_type": "review_case", "action": "REVIEW_APPROVED"},
     ).json()
-    assert audit["items"][0]["actor_id"] == "rev"
+    assert audit["items"][0]["actor_id"] == "reviewer@test.local"
 
 
 def test_matching_endpoint_is_admin_only(client, seed, token):

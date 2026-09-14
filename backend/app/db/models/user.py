@@ -11,11 +11,10 @@ class User(Base, UUIDPKMixin, TimestampMixin):
     # "user" is a reserved word in PostgreSQL — use a safe table name.
     __tablename__ = "user_account"
 
-    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(120))
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
 
-    hashed_password: Mapped[str] = mapped_column(String(255))
+    firebase_uid: Mapped[str] = mapped_column(String(128), unique=True, index=True)
 
     role = mapped_column(
         str_enum(UserRole, "userrole"),

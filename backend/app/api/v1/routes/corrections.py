@@ -48,7 +48,7 @@ def split_link(
     link_id: str, body: SplitLinkRequest, reviewer: ReviewerUser, db: DbSession
 ):
     return _guard(
-        svc.split_link, db, link_id, reviewer.username, body.reason, body.mode
+        svc.split_link, db, link_id, reviewer.email, body.reason, body.mode
     )
 
 
@@ -57,13 +57,13 @@ def override_status(
     ubid: str, body: StatusOverrideRequest, reviewer: ReviewerUser, db: DbSession
 ):
     return _guard(
-        svc.override_status, db, ubid, reviewer.username, body.status, body.reason
+        svc.override_status, db, ubid, reviewer.email, body.status, body.reason
     )
 
 
 @router.post("/entities/{ubid}/status-override/clear", response_model=CorrectionResult)
 def clear_status_override(ubid: str, reviewer: ReviewerUser, db: DbSession):
-    return _guard(svc.clear_status_override, db, ubid, reviewer.username)
+    return _guard(svc.clear_status_override, db, ubid, reviewer.email)
 
 
 @router.post("/events/{event_id}/reassign", response_model=CorrectionResult)
@@ -74,10 +74,10 @@ def reassign_event(
     db: DbSession,
 ):
     return _guard(
-        svc.reassign_event, db, event_id, reviewer.username, body.target_ubid, body.reason
+        svc.reassign_event, db, event_id, reviewer.email, body.target_ubid, body.reason
     )
 
 
 @router.post("/undo/{audit_id}", response_model=CorrectionResult)
 def undo(audit_id: str, reviewer: ReviewerUser, db: DbSession):
-    return _guard(svc.undo, db, audit_id, reviewer.username)
+    return _guard(svc.undo, db, audit_id, reviewer.email)

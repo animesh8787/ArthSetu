@@ -29,15 +29,19 @@ services:
     restart: unless-stopped
     environment:
       # Defaults to development so `docker compose up` works with zero
-      # config for a trial run. A real deployment sets APP_ENV=production
-      # in .env — the app then refuses to start unless SECRET_KEY and
+      # config for a trial run — the Firebase Auth Emulator is still
+      # required for sign-in to work locally (see backend/.env.example). A
+      # real deployment sets APP_ENV=production in .env — the app then
+      # refuses to start unless FIREBASE_CREDENTIALS_JSON and
       # BOOTSTRAP_ADMIN_PASSWORD have also been overridden (see
       # backend/app/core/config.py).
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-arthsetu}:${POSTGRES_PASSWORD:-arthsetu}@db:5432/${POSTGRES_DB:-arthsetu}
-      SECRET_KEY: ${SECRET_KEY:-dev-insecure-change-me-in-production}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:8080}
-      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:-admin}
+      FIREBASE_CREDENTIALS_JSON: ${FIREBASE_CREDENTIALS_JSON:-}
+      FIREBASE_PROJECT_ID: ${FIREBASE_PROJECT_ID:-arthsetu-dev}
+      FIREBASE_AUTH_EMULATOR_HOST: ${FIREBASE_AUTH_EMULATOR_HOST:-}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@arthsetu.local}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-arthsetu-admin}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
     depends_on:

@@ -13,13 +13,13 @@ from backend.app.services.user_service import create_user
 
 def _bootstrap_admin() -> None:
     """First boot on an empty deployment: create the admin account from
-    BOOTSTRAP_ADMIN_USERNAME/PASSWORD so there's a way to log in at all —
-    the dev seeder (seed_dev.py) is demo tooling, not something you'd run
-    against a real deployment.
+    BOOTSTRAP_ADMIN_EMAIL/PASSWORD (in Firebase and locally) so there's a
+    way to log in at all — the dev seeder (seed_dev.py) is demo tooling,
+    not something you'd run against a real deployment.
 
     Guarded for multiple worker processes starting concurrently: if another
-    worker already won the race, the unique username constraint makes this
-    a no-op rather than a crash.
+    worker already won the race, the unique email/firebase_uid constraint
+    makes this a no-op rather than a crash.
     """
     db = SessionLocal()
     try:
@@ -28,7 +28,7 @@ def _bootstrap_admin() -> None:
         try:
             create_user(
                 db,
-                username=settings.BOOTSTRAP_ADMIN_USERNAME,
+                email=settings.BOOTSTRAP_ADMIN_EMAIL,
                 full_name="System Administrator",
                 password=settings.BOOTSTRAP_ADMIN_PASSWORD,
                 role="admin",

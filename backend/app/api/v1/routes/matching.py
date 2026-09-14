@@ -39,7 +39,7 @@ def get_weights(db: DbSession):
 @router.put("/weights", response_model=MatchingWeightsOut)
 def update_weights(body: MatchingWeightsUpdate, admin: AdminUser, db: DbSession):
     updates = body.model_dump(exclude_unset=True)
-    return config_svc.update_weights(db, updates, admin.username)
+    return config_svc.update_weights(db, updates, admin.email)
 
 
 @router.get("/calibration", response_model=MatchingCalibrationResponse)
