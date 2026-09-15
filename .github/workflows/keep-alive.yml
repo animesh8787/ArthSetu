@@ -13,5 +13,5 @@ jobs:
       - name: Ping TalentRank API
         run: |
           curl --fail --silent --show-error \
-            --max-time 20 \
+            --max-time 90 \
             https://arthsetu-backend-xyxu.onrender.com/api/v1/health
