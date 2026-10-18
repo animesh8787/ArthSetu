@@ -5,6 +5,7 @@ import { matchingApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
 import type { MatchingWeights } from "@/types/api";
+import { Badge } from "@/components/ui/Badge";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { useToast } from "@/components/Toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -25,6 +26,7 @@ const IDENTIFIER_FIELDS: { key: EditableField; label: string; hint: string }[] =
 const CORROBORATING_FIELDS: { key: EditableField; label: string; hint: string }[] = [
   { key: "name_weight", label: "Name similarity", hint: "Multiplied by the fuzzy name score" },
   { key: "address_weight", label: "Address similarity", hint: "Multiplied by the fuzzy address score" },
+  { key: "contact_weight", label: "Contact match (phone / email)", hint: "Counted only beside a related name, so a shared agency number cannot link strangers" },
   { key: "pin_weight", label: "PIN code match", hint: "Only counted once names are at least loosely related" },
   { key: "pin_requires_name_sim", label: "PIN requires name similarity ≥", hint: "Guards against a bare PIN covering thousands of businesses" },
 ];
@@ -68,6 +70,23 @@ export function MatchingConfigPage() {
 
   const weightsQuery = useQuery({ queryKey: ["matching-weights"], queryFn: matchingApi.getWeights });
   const calibrationQuery = useQuery({ queryKey: ["matching-calibration"], queryFn: matchingApi.calibration });
+
+  const suggestionQuery = useQuery({
+    queryKey: ["matching-suggestion"],
+    queryFn: matchingApi.suggestion,
+  });
+  const apply = useMutation({
+    mutationFn: matchingApi.applySuggestion,
+    onSuccess: (w) => {
+      notify("success", "Learned weights applied");
+      queryClient.setQueryData(["matching-weights"], w);
+      const { updated_by: _u, updated_at: _a, ...editable } = w;
+      setDraft(editable);
+      queryClient.invalidateQueries({ queryKey: ["matching-suggestion"] });
+      queryClient.invalidateQueries({ queryKey: ["matching-calibration"] });
+    },
+    onError: (e) => notify("error", (e as unknown as ApiError)?.message ?? "Could not apply"),
+  });
 
   const [draft, setDraft] = useState<Record<EditableField, number> | null>(null);
 
@@ -193,6 +212,78 @@ export function MatchingConfigPage() {
                 </div>
               </div>
             </>
+          )}
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
+          title="Learned from reviewer decisions"
+          description="A small logistic regression over approved and rejected cases suggests weights. It never scores a record itself: matching stays the weighted sum above, and nothing changes until you apply."
+          action={
+            suggestionQuery.data?.ready ? (
+              <Button size="sm" loading={apply.isPending} onClick={() => apply.mutate()}>
+                Apply suggestion
+              </Button>
+            ) : undefined
+          }
+        />
+        <CardBody>
+          {suggestionQuery.isLoading ? (
+            <Skeleton className="h-32 w-full" />
+          ) : suggestionQuery.isError ? (
+            <ErrorState onRetry={() => suggestionQuery.refetch()} />
+          ) : !suggestionQuery.data?.ready ? (
+            <p className="py-4 text-center text-[13px] text-ink-muted">
+              {suggestionQuery.data?.message}
+            </p>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-[12px] text-ink-subtle">
+                Trained on {formatNumber(suggestionQuery.data.decided)} decisions (
+                {formatNumber(suggestionQuery.data.approved)} approved,{" "}
+                {formatNumber(suggestionQuery.data.rejected)} rejected); the fit reproduces{" "}
+                {Math.round((suggestionQuery.data.accuracy ?? 0) * 100)}% of them. Suggestions stay within
+                0.25x-2.5x of today's weight.
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-[13px]">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-wide text-ink-subtle">
+                      <th className="py-1 pr-3 font-semibold">Signal</th>
+                      <th className="py-1 pr-3 text-right font-semibold">Approved avg</th>
+                      <th className="py-1 pr-3 text-right font-semibold">Rejected avg</th>
+                      <th className="py-1 pr-3 text-right font-semibold">Pull toward approval</th>
+                      <th className="py-1 pr-3 text-right font-semibold">Weight now</th>
+                      <th className="py-1 text-right font-semibold">Suggested</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {suggestionQuery.data.signals.map((s) => (
+                      <tr key={s.field} className="border-t border-line">
+                        <td className="py-1.5 pr-3 text-ink">
+                          {s.label}
+                          {!s.learned && (
+                            <Badge tone="neutral" className="ml-2">
+                              no variation, kept
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{s.approved_avg.toFixed(2)}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{s.rejected_avg.toFixed(2)}</td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">
+                          {s.learned ? s.coefficient.toFixed(2) : "–"}
+                        </td>
+                        <td className="py-1.5 pr-3 text-right tabular-nums">{s.current_weight.toFixed(2)}</td>
+                        <td className="py-1.5 text-right font-medium tabular-nums text-ink">
+                          {s.suggested_weight.toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           )}
         </CardBody>
       </Card>

@@ -27,6 +27,7 @@ export function AuditFeed({
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ["audit", query],
     queryFn: () => auditApi.list(query),
+    refetchInterval: 15_000, // live feed: new actions appear without a reload
   });
 
   if (isLoading) {

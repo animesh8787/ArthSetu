@@ -44,4 +44,21 @@ describe("describeAudit", () => {
   it("falls back to a title-cased action for unknown actions", () => {
     expect(describeAudit(entry({ action: "SOMETHING_ELSE" })).title).toBe("Something Else");
   });
+
+  it("describes corrections made by reviewers", () => {
+    expect(describeAudit(entry({ action: "LINK_SPLIT", after_state: { reason: "different firm" } })).title).toBe(
+      "Record split from this business",
+    );
+    expect(describeAudit(entry({ action: "STATUS_OVERRIDDEN", after_state: { status: "closed" } })).title).toBe(
+      "Status pinned to Closed",
+    );
+    expect(describeAudit(entry({ action: "CORRECTION_UNDONE", after_state: { note: "Split undone" } })).detail).toBe(
+      "Split undone",
+    );
+  });
+
+  it("says when a rejection gave the record its own identity", () => {
+    const v = describeAudit(entry({ action: "REVIEW_REJECTED", after_state: { new_entity_id: "abc" } }));
+    expect(v.detail).toContain("own business identity");
+  });
 });

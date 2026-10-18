@@ -104,6 +104,19 @@ def _normalize(name: str) -> str:
     return " ".join(name.lower().split())
 
 
+def _phone() -> str:
+    return random.choice("6789") + "".join(random.choices(string.digits, k=9))
+
+
+def _noisy_phone(phone: str) -> str:
+    return random.choice([phone, f"+91 {phone[:5]} {phone[5:]}", f"0{phone}", f"{phone[:4]}-{phone[4:]}"])
+
+
+def _email(name: str) -> str:
+    slug = "".join(c for c in name.lower() if c.isalnum())[:18] or "unit"
+    return f"accounts@{slug}.example"
+
+
 def _noisy(name: str) -> str:
     return random.choice([
         name.upper(), name.lower(), f"M/S {name}",
@@ -298,6 +311,8 @@ def seed(force: bool = False) -> None:
                 address=address,
                 normalized_address=normalize_address(address),
                 pin_code=DISTRICT_PINS[district],
+                phone=_phone(),
+                email=_email(name),
                 district=district,
                 sector=random.choice(SECTORS),
                 status=EntityStatusEnum.UNKNOWN,
@@ -314,26 +329,31 @@ def seed(force: bool = False) -> None:
             TOTAL_BUSINESSES,
         )):
             for system in random.sample(systems, random.randint(1, 4)):
-                dirty = _noisy(be.legal_name)
-                # roughly a third of departmental records lack a strong id —
-                # those rely on name + address + PIN to be resolved.
-                keep_pan = random.random() < 0.65
-                keep_gstin = keep_pan and random.random() < 0.6
-                sr = SourceRecord(
-                    source_system_id=system.id,
-                    external_id=str(uuid.uuid4())[:12],
-                    raw_payload={"name": dirty, "system": system.code},
-                    normalized_payload={"name": _normalize(dirty)},
-                    extracted_name=dirty,
-                    extracted_pan=be.pan if (keep_pan and be.pan) else None,
-                    extracted_gstin=be.gstin if (keep_gstin and be.gstin) else None,
-                    extracted_address=_noisy_address(be.address),
-                    extracted_pin=_noisy_pin(be.pin_code) or None,
-                )
-                db.add(sr)
-                db.flush()
-                record_ids.append(sr.id)
-                n_records += 1
+                # ~1 in 8 departments holds the same business twice (renewal, re-registration),
+                # which the matcher must resolve to a single identity.
+                for _copy in range(2 if random.random() < 0.12 else 1):
+                    dirty = _noisy(be.legal_name)
+                    # roughly a third of departmental records lack a strong id —
+                    # those rely on name + address + PIN to be resolved.
+                    keep_pan = random.random() < 0.65
+                    keep_gstin = keep_pan and random.random() < 0.6
+                    sr = SourceRecord(
+                        source_system_id=system.id,
+                        external_id=str(uuid.uuid4())[:12],
+                        raw_payload={"name": dirty, "system": system.code},
+                        normalized_payload={"name": _normalize(dirty)},
+                        extracted_name=dirty,
+                        extracted_pan=be.pan if (keep_pan and be.pan) else None,
+                        extracted_gstin=be.gstin if (keep_gstin and be.gstin) else None,
+                        extracted_address=_noisy_address(be.address),
+                        extracted_pin=_noisy_pin(be.pin_code) or None,
+                        extracted_phone=_noisy_phone(be.phone) if random.random() < 0.5 else None,
+                        extracted_email=be.email if random.random() < 0.3 else None,
+                    )
+                    db.add(sr)
+                    db.flush()
+                    record_ids.append(sr.id)
+                    n_records += 1
 
             for et, sc, occurred in _activity_for(archetype):
                 db.add(ActivityEvent(

@@ -3,10 +3,12 @@
 # ============================================================
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, or_
+from datetime import datetime, timedelta, timezone
+
+from sqlalchemy import exists, func, or_
 from sqlalchemy.orm import Session
 
-from backend.app.db.enums import EntityStatusEnum
+from backend.app.db.enums import EntityStatusEnum, EventTypeEnum
 from backend.app.db.session import get_db
 from backend.app.db.models.business_entity import BusinessEntity
 from backend.app.db.models.entity_record_link import EntityRecordLink
@@ -34,10 +36,14 @@ def _enum_value(value) -> str:
 @router.get("/search", response_model=BusinessSearchResponse)
 def search_businesses(
     db: Session = Depends(get_db),
-    q: str | None = Query(default=None, description="UBID, name, PAN or GSTIN"),
+    q: str | None = Query(default=None, description="Substring of UBID, name, PAN, GSTIN or address"),
     status: EntityStatusEnum | None = Query(default=None),
     district: str | None = Query(default=None),
     pin: str | None = Query(default=None, description="6-digit PIN code"),
+    no_inspection_months: int | None = Query(
+        default=None, ge=1, le=120,
+        description="Only businesses with no inspection in the last N months (or never)",
+    ),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
@@ -63,6 +69,14 @@ def search_businesses(
         query = query.filter(BusinessEntity.district.ilike(f"%{district}%"))
     if pin:
         query = query.filter(BusinessEntity.pin_code == pin.strip())
+    if no_inspection_months:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=30 * no_inspection_months)
+        inspected_since = exists().where(
+            ActivityEvent.business_entity_id == BusinessEntity.id,
+            ActivityEvent.event_type == EventTypeEnum.INSPECTION,
+            func.coalesce(ActivityEvent.occurred_at, ActivityEvent.created_at) >= cutoff,
+        )
+        query = query.filter(~inspected_since)
 
     total = query.with_entities(func.count(BusinessEntity.id)).scalar() or 0
 

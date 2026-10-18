@@ -4,8 +4,11 @@ import {
   CircleSlash,
   FileEdit,
   GitMerge,
+  Pin,
   PlusCircle,
   RefreshCw,
+  Scissors,
+  Undo2,
   type LucideIcon,
 } from "lucide-react";
 import type { AuditEntry } from "@/types/api";
@@ -31,8 +34,7 @@ export function describeAudit(entry: AuditEntry): AuditView {
   const after = entry.after_state;
 
   switch (action) {
-    case "STATUS_UPDATED":
-    case "STATUS_INFERRED": {
+    case "STATUS_UPDATED": {
       const status = stateStr(after, "status");
       const conf = stateStr(after, "confidence");
       return {
@@ -50,11 +52,15 @@ export function describeAudit(entry: AuditEntry): AuditView {
         detail: stateStr(after, "link_id") ? "link confirmed" : undefined,
       };
     case "REVIEW_REJECTED":
-      return { icon: CircleSlash, tone: "danger", title: "Review rejected" };
+      return {
+        icon: CircleSlash,
+        tone: "danger",
+        title: "Review rejected",
+        detail: stateStr(after, "new_entity_id") ? "record given its own business identity" : undefined,
+      };
     case "REVIEW_CREATED":
       return { icon: ArrowLeftRight, tone: "warn", title: "Sent to review queue" };
-    case "AUTO_LINK":
-    case "AUTO_LINK_EVALUATED": {
+    case "AUTO_LINK": {
       const conf = stateStr(after, "confidence");
       const decision = stateStr(after, "decision");
       return {
@@ -71,8 +77,26 @@ export function describeAudit(entry: AuditEntry): AuditView {
         title: "New business identity created",
         detail: stateStr(after, "ubid_code"),
       };
-    case "DATA_CORRECTION":
-      return { icon: FileEdit, tone: "neutral", title: "Manual data correction" };
+    case "LINK_SPLIT":
+      return {
+        icon: Scissors,
+        tone: "warn",
+        title: "Record split from this business",
+        detail: stateStr(after, "reason"),
+      };
+    case "STATUS_OVERRIDDEN":
+      return {
+        icon: Pin,
+        tone: "warn",
+        title: `Status pinned to ${titleCase(stateStr(after, "status") ?? "a value")}`,
+        detail: stateStr(after, "reason"),
+      };
+    case "STATUS_OVERRIDE_CLEARED":
+      return { icon: RefreshCw, tone: "brand", title: "Status pin cleared" };
+    case "EVENT_REASSIGNED":
+      return { icon: ArrowLeftRight, tone: "warn", title: "Activity event reassigned", detail: stateStr(after, "reason") };
+    case "CORRECTION_UNDONE":
+      return { icon: Undo2, tone: "neutral", title: "Correction undone", detail: stateStr(after, "note") };
     default:
       return { icon: FileEdit, tone: "neutral", title: titleCase(action || "Event") };
   }

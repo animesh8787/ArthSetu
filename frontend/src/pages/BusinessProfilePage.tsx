@@ -218,7 +218,7 @@ export function BusinessProfilePage() {
               <CardHeader title="Audit trail" description="Actions on this business" />
               <CardBody>
                 <AuditFeed
-                  params={{ entity_type: "business_entity", entity_id: data.id }}
+                  params={{ business_id: data.id }}
                   limit={6}
                   emptyLabel="No recorded actions for this business."
                 />

@@ -19,7 +19,7 @@ import { EmptyState, ErrorState } from "@/components/ui/States";
 import { Pagination } from "@/components/ui/Pagination";
 
 const PAGE_SIZE = 25;
-const FILTER_KEYS = ["q", "status", "district"] as const;
+const FILTER_KEYS = ["q", "status", "district", "inspection"] as const;
 
 const STATUS_OPTIONS = [
   { value: "", label: "All statuses" },
@@ -27,6 +27,14 @@ const STATUS_OPTIONS = [
   { value: "dormant", label: "Dormant" },
   { value: "closed", label: "Closed" },
   { value: "unknown", label: "Unclassified" },
+];
+
+const INSPECTION_OPTIONS = [
+  { value: "", label: "Any inspection history" },
+  { value: "6", label: "No inspection in 6 months" },
+  { value: "12", label: "No inspection in 12 months" },
+  { value: "18", label: "No inspection in 18 months" },
+  { value: "24", label: "No inspection in 24 months" },
 ];
 
 export function BusinessSearchPage() {
@@ -65,6 +73,7 @@ export function BusinessSearchPage() {
     q: values.q || undefined,
     status: values.status || undefined,
     district: values.district || undefined,
+    no_inspection_months: values.inspection ? Number(values.inspection) : undefined,
     limit: PAGE_SIZE,
     offset,
   };
@@ -75,7 +84,7 @@ export function BusinessSearchPage() {
     placeholderData: keepPreviousData,
   });
 
-  const hasFilters = Boolean(values.q || values.status || values.district);
+  const hasFilters = Boolean(values.q || values.status || values.district || values.inspection);
   const districtOptions = [
     { value: "", label: "All districts" },
     ...(districts.data ?? [])
@@ -87,7 +96,7 @@ export function BusinessSearchPage() {
     <div>
       <PageHeader
         title="Business Search"
-        description="Find businesses by UBID, name, PAN, GSTIN, status or district."
+        description="Find businesses by UBID, name, PAN, GSTIN, status, district or overdue inspection."
       />
 
       {/* filter row — one line, above the results */}
@@ -97,7 +106,7 @@ export function BusinessSearchPage() {
           <Input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Search UBID, name, PAN or GSTIN…"
+            placeholder="Search UBID, name, PAN, GSTIN or address…"
             className="pl-8"
             aria-label="Search businesses"
           />
@@ -115,6 +124,13 @@ export function BusinessSearchPage() {
           onChange={(e) => setFilter({ district: e.target.value })}
           aria-label="Filter by district"
           className="w-44"
+        />
+        <Select
+          options={INSPECTION_OPTIONS}
+          value={values.inspection}
+          onChange={(e) => setFilter({ inspection: e.target.value })}
+          aria-label="Filter by inspection history"
+          className="w-56"
         />
         {hasFilters && (
           <Button

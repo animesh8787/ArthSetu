@@ -208,6 +208,41 @@ export interface SourceSystem {
   name: string;
   department: string;
   record_count: number;
+  /** Only admins receive the URL; it can carry an access key. */
+  pull_url: string | null;
+  pull_kind: "records" | "events" | null;
+  last_pull_at: string | null;
+  last_pull_status: string | null;
+}
+
+export interface EventsReport {
+  rows_read: number;
+  created: number;
+  skipped_duplicates: number;
+  unresolved: number;
+  errors: { row: number; error: string }[];
+  recomputed: number;
+}
+
+export interface LearnedSignal {
+  field: string;
+  label: string;
+  coefficient: number;
+  approved_avg: number;
+  rejected_avg: number;
+  current_weight: number;
+  suggested_weight: number;
+  learned: boolean;
+}
+
+export interface CalibrationSuggestion {
+  ready: boolean;
+  message: string | null;
+  decided: number;
+  approved: number;
+  rejected: number;
+  accuracy: number | null;
+  signals: LearnedSignal[];
 }
 
 export interface MatchingTally {
@@ -261,6 +296,7 @@ export interface MatchingWeights {
   name_weight: number;
   address_weight: number;
   pin_weight: number;
+  contact_weight: number;
   pin_requires_name_sim: number;
   auto_link_threshold: number;
   review_threshold: number;

@@ -4,10 +4,12 @@ import type {
   AuditEntry,
   BusinessProfile,
   BusinessSearchItem,
+  CalibrationSuggestion,
   CorrectionEntry,
   CorrectionResult,
   DashboardResponse,
   DistrictRow,
+  EventsReport,
   HealthResponse,
   IngestionReport,
   Job,
@@ -68,6 +70,8 @@ export interface BusinessSearchParams {
   q?: string;
   status?: string;
   district?: string;
+  /** Only businesses with no inspection in the last N months (or never). */
+  no_inspection_months?: number;
   limit?: number;
   offset?: number;
 }
@@ -108,6 +112,8 @@ export interface AuditParams {
   entity_type?: string;
   entity_id?: string;
   action?: string;
+  /** Everything that happened to one business (links, reviews, events, its own changes). */
+  business_id?: string;
   limit?: number;
   offset?: number;
 }
@@ -171,6 +177,31 @@ export const ingestApi = {
       .post<IngestionReport>("/ingest/csv", form)
       .then((r) => r.data);
   },
+  downloadEventsTemplate: async () => {
+    const res = await api.get<Blob>("/ingest/events/template", { responseType: "blob" });
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "arthsetu_events_template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  },
+  uploadEventsCsv: (file: File, sourceSystemCode?: string) => {
+    const form = new FormData();
+    form.append("file", file);
+    if (sourceSystemCode) form.append("source_system_code", sourceSystemCode);
+    return api.post<EventsReport>("/ingest/events/csv", form).then((r) => r.data);
+  },
+  // Point a system at the CSV/JSON export it publishes (null clears it).
+  setConnector: (code: string, pull_url: string | null, pull_kind: "records" | "events") =>
+    api
+      .put<SourceSystem>(`/ingest/source-systems/${encodeURIComponent(code)}/connector`, {
+        pull_url,
+        pull_kind,
+      })
+      .then((r) => r.data),
+  syncConnector: (code: string) =>
+    api.post<Job>(`/ingest/source-systems/${encodeURIComponent(code)}/sync`).then((r) => r.data),
   // Queues a background job over every unresolved record; poll it via jobsApi.
   processPending: () =>
     api.post<Job>("/ingest/process-pending").then((r) => r.data),
@@ -188,4 +219,8 @@ export const matchingApi = {
     api.put<MatchingWeights>("/matching/weights", updates).then((r) => r.data),
   calibration: () =>
     api.get<MatchingCalibration>("/matching/calibration").then((r) => r.data),
+  suggestion: () =>
+    api.get<CalibrationSuggestion>("/matching/calibration/suggestion").then((r) => r.data),
+  applySuggestion: () =>
+    api.post<MatchingWeights>("/matching/calibration/apply").then((r) => r.data),
 };
