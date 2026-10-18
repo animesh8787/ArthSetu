@@ -44,6 +44,10 @@ services:
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@arthsetu.local}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-arthsetu-admin}
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-2}
+    # Lets the container reach a Firebase Auth Emulator running on the host
+    # (start it with `--host 0.0.0.0`, then FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       db:
         condition: service_healthy
@@ -65,6 +69,13 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        VITE_FIREBASE_API_KEY: ${VITE_FIREBASE_API_KEY:-}
+        VITE_FIREBASE_AUTH_DOMAIN: ${VITE_FIREBASE_AUTH_DOMAIN:-}
+        VITE_FIREBASE_PROJECT_ID: ${VITE_FIREBASE_PROJECT_ID:-}
+        VITE_FIREBASE_APP_ID: ${VITE_FIREBASE_APP_ID:-}
+        # Browser-side address of the emulator, e.g. 127.0.0.1:9099
+        VITE_FIREBASE_AUTH_EMULATOR_HOST: ${VITE_FIREBASE_AUTH_EMULATOR_HOST:-}
     restart: unless-stopped
     depends_on:
       backend:

@@ -26,22 +26,14 @@ firebase-admin==6.5.0
 python-multipart==0.0.20
 
 # =========================
-# Synthetic Data Generation
-# =========================
-faker==37.5.3
-python-dateutil==2.9.0.post0
-
-# =========================
 # Utilities
 # =========================
 python-dotenv==1.1.1
-orjson==3.11.2
 
 # =========================
-# Optional (Useful for Matching / Analytics)
+# Matching / calibration
 # =========================
 rapidfuzz==3.13.0
-pandas==2.3.2
 numpy==2.3.2
 
 # =========================

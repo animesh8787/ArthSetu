@@ -66,7 +66,8 @@ def update_user(
     try:
         user = user_service.update_user(db, user_id, **body.model_dump())
     except ValueError as exc:
-        code = 404 if "not found" in str(exc).lower() else 400
+        msg = str(exc).lower()
+        code = 404 if "not found" in msg else 409 if "already exists" in msg else 400
         raise HTTPException(status_code=code, detail=str(exc))
     return UserOut(**user_service.to_out(user))
 

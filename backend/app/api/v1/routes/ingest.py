@@ -111,7 +111,7 @@ async def ingest_csv(
     file: Annotated[UploadFile, File()],
     process: Annotated[bool, Form()] = True,
 ):
-    raw = await file.read()
+    raw = await file.read(MAX_UPLOAD_BYTES + 1)  # never buffer more than the limit
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="File exceeds 8 MB limit")
     if not raw.strip():

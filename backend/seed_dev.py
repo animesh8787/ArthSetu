@@ -230,7 +230,7 @@ def reset(force: bool = False) -> None:
 
 
 def _require_firebase_target() -> None:
-    if os.environ.get("FIREBASE_AUTH_EMULATOR_HOST") or settings.FIREBASE_CREDENTIALS_JSON:
+    if settings.FIREBASE_AUTH_EMULATOR_HOST or settings.FIREBASE_CREDENTIALS_JSON:
         return
     raise SystemExit(
         "\nNo Firebase Auth target configured: set FIREBASE_AUTH_EMULATOR_HOST "

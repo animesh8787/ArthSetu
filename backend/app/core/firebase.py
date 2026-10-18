@@ -10,6 +10,8 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 from functools import lru_cache
 from typing import Any
 
@@ -25,8 +27,21 @@ from backend.app.core.config import settings
 auth = _auth
 
 
-@lru_cache(maxsize=1)
+_init_lock = threading.Lock()
+
+
 def _app() -> firebase_admin.App:
+    # lru_cache alone lets two threads race into initialize_app on first use.
+    with _init_lock:
+        return _build_app()
+
+
+@lru_cache(maxsize=1)
+def _build_app() -> firebase_admin.App:
+    if settings.FIREBASE_AUTH_EMULATOR_HOST:
+        # firebase-admin reads the emulator host from the process environment,
+        # and pydantic-settings never writes .env values back to it.
+        os.environ.setdefault("FIREBASE_AUTH_EMULATOR_HOST", settings.FIREBASE_AUTH_EMULATOR_HOST)
     if settings.FIREBASE_CREDENTIALS_JSON:
         cred = credentials.Certificate(json.loads(settings.FIREBASE_CREDENTIALS_JSON))
         return firebase_admin.initialize_app(cred, {"projectId": settings.FIREBASE_PROJECT_ID})

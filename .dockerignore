@@ -17,3 +17,7 @@ frontend/.vite
 *.log
 Docs
 LICENSE
+**/.env
+.env
+backend/tests
+frontend/src/**/*.test.*

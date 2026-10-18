@@ -1,25 +1,32 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
+from sqlalchemy.exc import IntegrityError
 
 from backend.app.api.v1.router import router as api_router
 from backend.app.core.config import settings
 from backend.app.db.models.user import User
 from backend.app.db.session import SessionLocal
+from backend.app.services.job_runner import recover_interrupted_jobs
 from backend.app.services.user_service import create_user
+
+
+log = logging.getLogger("arthsetu")
 
 
 def _bootstrap_admin() -> None:
     """First boot on an empty deployment: create the admin account from
     BOOTSTRAP_ADMIN_EMAIL/PASSWORD (in Firebase and locally) so there's a
-    way to log in at all — the dev seeder (seed_dev.py) is demo tooling,
+    way to log in at all - the dev seeder (seed_dev.py) is demo tooling,
     not something you'd run against a real deployment.
 
-    Guarded for multiple worker processes starting concurrently: if another
-    worker already won the race, the unique email/firebase_uid constraint
-    makes this a no-op rather than a crash.
+    If the Firebase project already knows the email (database reset, Firebase
+    kept), that account is adopted rather than left stranded. Only a lost race
+    between concurrently starting workers is silent; any other failure is
+    logged, because a missing admin means nobody can log in.
     """
     db = SessionLocal()
     try:
@@ -32,9 +39,13 @@ def _bootstrap_admin() -> None:
                 full_name="System Administrator",
                 password=settings.BOOTSTRAP_ADMIN_PASSWORD,
                 role="admin",
+                adopt_existing=True,
             )
-        except Exception:  # noqa: BLE001 — lost the race to another worker
+        except IntegrityError:  # another worker created the same admin first
             db.rollback()
+        except Exception:  # noqa: BLE001
+            db.rollback()
+            log.exception("Bootstrap admin could not be created - nobody can sign in")
     finally:
         db.close()
 
@@ -42,6 +53,7 @@ def _bootstrap_admin() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _bootstrap_admin()
+    recover_interrupted_jobs()
     yield
 
 
@@ -55,7 +67,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
-    allow_credentials=True,
+    allow_credentials=False,  # bearer tokens, not cookies
     allow_methods=["*"],
     allow_headers=["*"],
 )

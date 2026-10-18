@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 from uuid import UUID
 
@@ -114,6 +114,33 @@ def _execute(job_id: UUID) -> None:
             job.error = str(exc)[:2000]
             job.finished_at = datetime.now(timezone.utc)
             db.commit()
+    finally:
+        db.close()
+
+
+# A job still pending/running this long after it was created lost its worker thread
+# (restart, free-tier spin-down). Younger ones may belong to a sibling worker process.
+STALE_AFTER = timedelta(minutes=10)
+
+
+def recover_interrupted_jobs() -> int:
+    """Fail jobs orphaned by a restart so they stop showing as running forever."""
+    db = SessionLocal()
+    try:
+        stale = (
+            db.query(Job)
+            .filter(
+                Job.status.in_([JobStatusEnum.PENDING, JobStatusEnum.RUNNING]),
+                Job.created_at < datetime.now(timezone.utc) - STALE_AFTER,
+            )
+            .all()
+        )
+        for job in stale:
+            job.status = JobStatusEnum.FAILED
+            job.error = "Interrupted by a server restart - run it again"
+            job.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        return len(stale)
     finally:
         db.close()
 

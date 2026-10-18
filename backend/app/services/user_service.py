@@ -29,14 +29,25 @@ def create_user(
     full_name: str,
     password: str,
     role: str = "viewer",
+    adopt_existing: bool = False,
 ) -> User:
+    """Create the Firebase identity and the local profile.
+
+    ``adopt_existing`` links an already-registered Firebase account instead of
+    failing - used by the bootstrap admin when the database was reset but the
+    Firebase project was not. An adopted account is never deleted on failure.
+    """
     if get_by_email(db, email):
         raise ValueError("Email already exists")
 
+    adopted = False
     try:
         record = firebase.create_user(email=email, password=password)
     except firebase.auth.EmailAlreadyExistsError:
-        raise ValueError("Email already exists")
+        if not adopt_existing:
+            raise ValueError("Email already exists")
+        record = firebase.get_user_by_email(email)
+        adopted = True
 
     try:
         user = User(
@@ -50,10 +61,11 @@ def create_user(
         db.commit()
         db.refresh(user)
     except Exception:
-        # Local row failed — don't leave an orphaned Firebase account behind,
+        # Local row failed - don't leave an orphaned Firebase account behind,
         # or retrying with the same email hits EmailAlreadyExistsError forever.
         db.rollback()
-        firebase.delete_user(record.uid)
+        if not adopted:
+            firebase.delete_user(record.uid)
         raise
     return user
 
@@ -87,6 +99,18 @@ def update_user(db: Session, user_id: str, **changes) -> User:
         if changes.get("email") not in (None, user.email):
             raise ValueError("The bootstrap admin's email cannot be changed")
 
+    new_email = changes.get("email")
+    if new_email is not None and new_email != user.email:
+        if get_by_email(db, new_email):
+            raise ValueError("Email already exists")
+        # Firebase owns sign-in, so the login email must move there first.
+        try:
+            firebase.update_user(user.firebase_uid, email=new_email)
+        except firebase.auth.EmailAlreadyExistsError:
+            raise ValueError("Email already exists")
+        except firebase.auth.UserNotFoundError:
+            raise ValueError("User not found in Firebase")
+
     if changes.get("role") is not None:
         user.role = UserRole(changes["role"])
     for field in ("full_name", "email", "is_active"):
@@ -99,7 +123,10 @@ def update_user(db: Session, user_id: str, **changes) -> User:
 
 def set_password(db: Session, user_id: str, new_password: str) -> User:
     user = _get(db, user_id)
-    firebase.update_user(user.firebase_uid, password=new_password)
+    try:
+        firebase.update_user(user.firebase_uid, password=new_password)
+    except firebase.auth.UserNotFoundError:
+        raise ValueError("User not found in Firebase")
     return user
 
 
