@@ -17,7 +17,9 @@ import pytest
 
 _TMP_DB = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
 _TMP_DB.close()
-os.environ["DATABASE_URL"] = f"sqlite:///{_TMP_DB.name}"
+# CI points ARTHSETU_TEST_DATABASE_URL at a real PostgreSQL to catch what SQLite hides
+# (foreign keys, native types); tables are dropped and recreated per test either way.
+os.environ["DATABASE_URL"] = os.environ.get("ARTHSETU_TEST_DATABASE_URL") or f"sqlite:///{_TMP_DB.name}"
 # Background jobs run inline (no worker thread) so tests are deterministic —
 # a job's result is available the instant submit_job() returns.
 os.environ["JOBS_SYNC"] = "1"

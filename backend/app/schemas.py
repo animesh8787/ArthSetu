@@ -50,13 +50,6 @@ class PasswordResetRequest(BaseModel):
 # Health
 # ------------------------------------------------------------
 
-class HealthResponse(BaseModel):
-    status: str
-    service: str
-    version: str
-    environment: str
-    database: str
-
 
 # ------------------------------------------------------------
 # Dashboard
@@ -221,17 +214,6 @@ class StatusResultResponse(BaseModel):
     reasons: List[str]
 
 
-class StatusRunAllResponse(BaseModel):
-    message: str
-    processed: int
-    failed: int
-    active: int
-    dormant: int
-    closed: int
-    duration_seconds: float
-    errors: List[Any]
-
-
 # ------------------------------------------------------------
 # Matching
 # ------------------------------------------------------------
@@ -318,14 +300,6 @@ class IngestionReportOut(BaseModel):
     errors: List[RowError]
     matching: Optional[MatchingTallyOut] = None
     job_id: Optional[str] = None
-
-
-class ProcessPendingResponse(BaseModel):
-    processed: int
-    auto_link: int
-    review: int
-    new_entity: int
-    failed: int
 
 
 class PendingCountResponse(BaseModel):

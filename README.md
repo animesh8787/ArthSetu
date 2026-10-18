@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Status-Prototype%20Operational-success?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/FastAPI-Backend-009688?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/PostgreSQL-Ready-blue?style=for-the-badge"/>
-  <img src="https://img.shields.io/badge/Explainable-AI-orange?style=for-the-badge"/>
+  <img src="https://img.shields.io/badge/Explainable-Scoring-orange?style=for-the-badge"/>
   <img src="https://img.shields.io/badge/Human--in--Loop-GovTech-important?style=for-the-badge"/>
 </p>
 
@@ -116,11 +116,10 @@ ArthSetu intelligently links fragmented business records across multiple systems
 
 ### Similarity Signals
 
-- Business name similarity
+- Business name similarity (token-set + fuzzy, filler words like "M/S" ignored)
 - Address similarity
-- PIN code
-- Contact patterns
-- Entity naming patterns
+- PIN code (counted only beside a loosely related name - a bare PIN covers thousands of businesses)
+- Contact details: phone / email (also only beside a related name, so a shared agency number cannot link strangers)
 
 ---
 
@@ -129,10 +128,10 @@ ArthSetu intelligently links fragmented business records across multiple systems
 Every linkage stores:
 
 - Confidence score
-- Evidence signals
-- Reviewer action
+- Evidence signals (the reasons shown below)
 - Timestamp
-- Reversibility metadata
+
+Reviewer actions and what is needed to reverse them live in the audit log, one entry per decision.
 
 ### Example Decision
 
@@ -158,9 +157,12 @@ Instead:
 
 | Confidence | Action |
 |---|---|
-| High | Auto-Link |
-| Medium | Send to Review Queue |
-| Low | Keep Separate |
+| High (>= auto-link threshold, default 0.92) | Auto-Link |
+| Medium (>= review threshold, default 0.70) | Send to Review Queue |
+| Low | Keep Separate - the record opens its own business identity |
+
+Rejecting a review case works the same way: the record gets its own UBID (reversible via Undo) and is not
+queued again.
 
 ---
 
@@ -174,7 +176,11 @@ Reviewers can:
 - Override classifications
 - Reassign activity events
 
-Every action becomes feedback for future calibration.
+Every approve / reject becomes training data for **calibration**. A small logistic regression (plain numpy)
+is fitted on the evidence of decided cases and *suggests* new matching weights, with the per-signal numbers
+that explain why. It never scores a record itself - matching stays the transparent weighted sum - and nothing
+changes until an admin presses **Apply** on the Matching Tuning page. Suggestions are bounded to 0.25x-2.5x of the
+current weights and need at least 20 decided cases (5+ of each outcome).
 
 ---
 
@@ -182,14 +188,18 @@ Every action becomes feedback for future calibration.
 
 A registered business is not necessarily an operational business.
 
-ArthSetu continuously evaluates:
+ArthSetu evaluates the activity events departments send it:
 
 - Inspections
-- Filings
-- Licence renewals
-- Utility activity
-- Compliance submissions
-- Closure notices
+- GST filings
+- Licence renewals / cancellations
+- Utility (power) usage
+- Complaints and document updates
+- Suspension and closure notices
+
+Events arrive through the **activity-event import** (CSV, or `POST /api/v1/ingest/events`) or a scheduled
+**connector**, and the affected businesses are re-evaluated immediately. A business with no events at all is
+**Unclassified**, not Closed.
 
 to infer:
 
@@ -212,12 +222,12 @@ Explicit closure or prolonged inactivity.
 ### Example
 
 ```yaml
-Status: Dormant
+Status: Dormant (confidence 0.31)
 
 Reasons:
-  - No filings in 14 months
-  - No inspections in 16 months
-  - Utility activity below threshold
+  - GST_FILED: base=0.95, age=410d, decay=0.1, score=0.09
+  - POWER_USAGE: base=0.82, age=212d, decay=0.3, score=0.25
+  - INSPECTION: base=0.75, age=520d, decay=0.1, score=0.07
 ```
 
 ---
@@ -232,10 +242,13 @@ Departments continue using existing systems.
 
 ArthSetu integrates using:
 
-- APIs
-- CSV exports
-- Scheduled syncs
-- Read-only connectors
+- JSON APIs (`/ingest/records`, `/ingest/events`)
+- CSV exports (records and activity events, department column names matched loosely)
+- Read-only connectors: a system publishes a CSV / JSON export at a public `https` URL and ArthSetu pulls it
+  (SSRF-guarded: no private addresses, no redirects, 8 MB cap). Nothing is written back to the department.
+- Scheduled syncs: `POST /api/v1/cron/tick` (shared-secret) pulls every connector, matches new records and
+  refreshes statuses. [`scheduled-sync.yml`](.github/workflows/scheduled-sync.yml) calls it every 6 hours once
+  the `CRON_SECRET` secret and `BACKEND_URL` variable are set.
 
 This makes deployment realistic.
 
@@ -306,8 +319,8 @@ Docs/
 
 - RapidFuzz
 - Weighted Rule Engine
-- Explainable Confidence Scoring
-- Reviewer Feedback Calibration
+- Explainable Confidence Scoring (every decision lists its reasons)
+- Reviewer-Feedback Calibration (logistic regression over decided reviews, numpy)
 
 ## Frontend
 
@@ -371,13 +384,16 @@ ArthSetu uses a normalized relational architecture.
 
 React + TypeScript console (Vite + Tailwind, TanStack Query). Complete:
 
-- **Authentication** — login, JWT session, route guards, role-gated UI, admin user management
+- **Authentication** — Firebase sign-in, route guards, role-gated UI, admin user management
 - **Data ingestion** (admin) — CSV import with loose header matching, records run through
-  the matching engine on upload, "process pending" for unresolved records
+  the matching engine on upload, "process pending" for unresolved records, activity-event
+  import, and per-system read-only connectors with "Sync now"
 - **Executive dashboard** — KPIs, activity-trend chart, status breakdown, live audit feed
-- **Business search** — full-text + status/district filters, URL-synced, paginated
+- **Business search** — substring search over UBID, name, PAN, GSTIN and address, plus status,
+  district and "no inspection in N months" filters; URL-synced, paginated
 - **Business profile** — identity, linked departmental records, matching evidence,
-  activity timeline, explainable status inference, per-business audit trail
+  activity timeline, explainable status inference, per-business audit trail (links, review
+  decisions, events and corrections)
 - **Review queue** — human-in-the-loop approve / reject with real link confirmation,
   reviewer attribution
 - **Corrections** — split a wrongly-linked record, pin a lifecycle status, reassign an
@@ -386,8 +402,8 @@ React + TypeScript console (Vite + Tailwind, TanStack Query). Complete:
 - **Background jobs** (admin) — batch status recompute and bulk matching now run off the
   request thread on a worker pool; a Jobs page tracks pending/running/succeeded/failed
 - **Matching tuning** (admin) — the scoring weights and decision thresholds are live-editable
-  (no longer fixed constants), alongside a reviewer-feedback calibration view that buckets
-  review-case confidence against actual approve/reject outcomes
+  (no longer fixed constants), a reviewer-feedback calibration view that buckets review-case
+  confidence against actual approve/reject outcomes, and learned-weight suggestions you can apply
 
 ---
 
@@ -397,16 +413,21 @@ To simulate real government environments, ArthSetu includes a realistic syntheti
 
 ## Current Dataset
 
+Produced by `python -m backend.seed_dev --reset` (fixed random seed, so it is reproducible):
+
 | Component | Count |
 |---|---|
 | Source Systems | 4 |
-| Businesses | 300 |
-| Source Records | 763 |
-| Linked Records | 708 |
-| Review Cases | 325 |
-| Activity Events | 2623 |
-| Status Snapshots | 300 |
-| Audit Logs | 705 |
+| Businesses | 146 |
+| Source Records | 376 |
+| Linked Records | 192 |
+| Open Review Cases | 184 |
+| Activity Events | 1227 |
+| Status Snapshots | 146 |
+| Audit Logs | 522 |
+
+About half of the departmental records carry no strong id, so name + address + PIN alone can only
+reach the review band; that is by design - it is why the review queue is so full on demo data.
 
 ---
 
@@ -414,10 +435,10 @@ To simulate real government environments, ArthSetu includes a realistic syntheti
 
 - Spelling variations
 - Missing PAN/GSTIN
-- Noisy addresses
-- Intra-department duplicates
+- Noisy addresses and phone formats
+- Intra-department duplicates (about 1 in 8 departments holds a business twice)
 - Ambiguous identities
-- Realistic activity histories
+- Synthetic activity histories
 
 ---
 
@@ -450,7 +471,7 @@ Processes incoming records.
 ## Review Queue
 
 ```http
-GET /api/v1/review
+GET /api/v1/reviews
 ```
 
 Returns pending review cases.
@@ -460,40 +481,40 @@ Returns pending review cases.
 ## Approve / Reject Review
 
 ```http
-POST /api/v1/review/{id}/approve
-POST /api/v1/review/{id}/reject
+POST /api/v1/reviews/{id}/approve
+POST /api/v1/reviews/{id}/reject
 ```
+
+A case that is already decided answers `409`.
 
 ---
 
 ## Business Search
 
 ```http
-GET /api/v1/business/search?q=
+GET /api/v1/business/search?q=&status=&district=&no_inspection_months=18
 ```
 
-Search using:
-
-- UBID
-- GSTIN
-- PAN
-- Business name
+`q` is a substring match over UBID, GSTIN, PAN, business name and address;
+`no_inspection_months` keeps businesses with no inspection in that window (or ever).
 
 ---
 
 ## Status Engine
 
 ```http
-GET /api/v1/status/{id}
+GET /api/v1/status/{ubid}      # reviewer role; recomputes and stores a snapshot
 ```
 
-Returns operational status.
+Returns operational status for a UBID.
 
 
 
-# Real-World Impact Estimates
+# Design Targets (not measured results)
 
-| Capability | Estimated Improvement |
+These are the improvements the design aims for. They have not been measured on real departmental data.
+
+| Capability | Target |
 |---|---|
 | Manual reconciliation reduction | 70–85% |
 | Duplicate record reduction | 60–75% |
@@ -515,7 +536,7 @@ Most solutions solve only one layer:
 ArthSetu combines:
 
 - Identity Resolution  
-- Explainable AI  
+- Explainable, rule-based scoring with learned calibration  
 - Human Governance  
 - Activity Intelligence  
 - Interoperability  
@@ -591,7 +612,7 @@ python -m uvicorn backend.app.main:app --reload
   [Firebase Auth Emulator](https://firebase.google.com/docs/emulator-suite)
   (`npm install -g firebase-tools`, then `firebase emulators:start --only auth`)
   and set `FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` in `backend/.env` —
-  see `backend/.env.example`. **For any non-local run, set
+  see `backend/.env.example` (the file is found from any working directory). **For any non-local run, set
   `FIREBASE_CREDENTIALS_JSON`** to a real Firebase service-account JSON.
 
 ## Frontend
@@ -612,10 +633,13 @@ docker compose up --build
 docker compose exec backend python -m backend.seed_dev --reset   # optional: synthetic demo data
 ```
 Runs Postgres + the API (`:8000`, migrations applied on start) + the
-frontend behind nginx (`:8080`). Works with zero extra config for a trial
-run (beyond the Firebase Auth Emulator noted above) — a fresh container
-bootstraps one admin login (`admin@arthsetu.local` / `arthsetu-admin` by
-default). For a real deployment, copy `.env.docker.example` to `.env` and
+frontend behind nginx (`:8080`). Sign-in needs a Firebase target even for a
+trial: put your web-app config in `.env` as `VITE_FIREBASE_*` (they are baked
+into the frontend image, so rebuild after changing them), or run the Auth
+Emulator on your host and set `FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099`
+(backend) and `VITE_FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` (browser); start it with `--host 0.0.0.0`.
+A fresh container bootstraps one admin login (`admin@arthsetu.local` / `arthsetu-admin` by
+default; if that email already exists in your Firebase project it is adopted). For a real deployment, copy `.env.docker.example` to `.env` and
 set `APP_ENV=production` plus real secrets; the backend refuses to start in
 production without a real Firebase project configured or with the default
 bootstrap password.
@@ -651,12 +675,13 @@ python -m pytest                    # backend — from the repo root
 cd frontend && npm run test         # frontend (Vitest)
 ```
 
-Backend covers the scoring/status/matching engines, JWT + password hashing, and
-the authenticated API (roles, review flow, endpoint contracts). Frontend covers
-the formatters, audit descriptions, and the auth context / route guard.
+Backend covers the scoring, status and matching engines, review decisions and undo, activity-event
+feeds, connectors, the scheduler endpoint, learned calibration, and the authenticated API (roles,
+endpoint contracts). Frontend covers the formatters, audit descriptions, and the auth context / route guard.
 
-GitHub Actions (`.github/workflows/ci.yml`) runs both suites plus
-`alembic upgrade head`, `tsc --noEmit`, and `vite build` on every push and PR.
+GitHub Actions (`.github/workflows/ci.yml`) runs both suites on every push and pull request, against
+SQLite and against a real PostgreSQL service (migrations, `alembic check`, tests), plus `tsc --noEmit`,
+`vite build` and a Docker build of both images.
 
 ---
 
@@ -682,9 +707,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs both suites plus
 
 ## Phase 2
 
-- ML-assisted calibration
 - District heatmaps
 - Anomaly detection
+- Per-district calibration (the learned-weights suggestion today is global)
 
 ## Phase 3
 

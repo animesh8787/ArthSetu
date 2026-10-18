@@ -703,7 +703,7 @@ function ReassignDialog({
           id="reassign-ubid"
           value={target}
           onChange={(e) => setTarget(e.target.value)}
-          placeholder="UBID000123"
+          placeholder="UBID-1A2B3C4D5E"
           className="font-mono"
           autoFocus
         />

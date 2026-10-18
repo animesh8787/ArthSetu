@@ -17,7 +17,7 @@ const PILLARS = [
   {
     icon: Fingerprint,
     title: "Explainable matching",
-    body: "GSTIN, PAN, name, address and PIN are weighted and scored against every candidate. Every decision — auto-link, send to review, or start a new identity — comes with the exact reasons behind it. No black box.",
+    body: "GSTIN, PAN, name, address, PIN and phone / email are weighted and scored against every candidate. Every decision — auto-link, send to review, or start a new identity — comes with the exact reasons behind it. No black box.",
   },
   {
     icon: Users,
@@ -32,7 +32,7 @@ const PILLARS = [
   {
     icon: Zap,
     title: "Real activity, not a guess",
-    body: "A business's lifecycle status — active, dormant, closed — is inferred from actual operational signals: power usage, filings, inspections, renewals. Each inference ships with its own confidence score and reasoning.",
+    body: "A business's lifecycle status — active, dormant, closed — is inferred from the operational signals departments send in - power usage, filings, inspections, renewals - by file import or scheduled pull. Each inference ships with its own confidence score and reasoning.",
   },
 ];
 
@@ -45,12 +45,12 @@ const FOUNDATIONS = [
   {
     icon: SlidersHorizontal,
     title: "Calibrated from feedback",
-    body: "Matching weights aren't fixed constants — they're tunable, and a calibration view shows how well thresholds line up with what reviewers actually decide.",
+    body: "Matching weights aren't fixed constants. They're tunable, a calibration view shows how well thresholds line up with what reviewers decide, and a learned suggestion - never applied without an admin - proposes new weights from those decisions.",
   },
   {
     icon: Network,
     title: "No source-system changes",
-    body: "Departments keep their own registries exactly as they are. ArthSetu ingests and resolves — it doesn't ask anyone to migrate anything.",
+    body: "Departments keep their own registries exactly as they are. ArthSetu takes their CSV or JSON exports - uploaded, or pulled read-only on a schedule - and resolves them. It never writes back and doesn't ask anyone to migrate anything.",
   },
 ];
 

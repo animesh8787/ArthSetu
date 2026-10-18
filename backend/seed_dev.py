@@ -49,6 +49,7 @@ from backend.app.core import firebase
 from backend.app.core.config import settings
 from backend.app.services.matching_engine import process_source_record
 from backend.app.services.scoring import normalize_address
+from backend.app.services.ubid_service import generate_ubid
 from backend.app.services.status_engine import infer_business_status
 
 # email, full name, role, password — edit the emails if seeding a real
@@ -303,7 +304,7 @@ def seed(force: bool = False) -> None:
             pan = _pan() if has_pan else None
             gstin = _gstin(pan) if pan and random.random() < 0.6 else None
             be = BusinessEntity(
-                ubid_code=f"UBID{i:06d}",
+                ubid_code=generate_ubid(),
                 legal_name=name,
                 normalized_name=_normalize(name),
                 pan=pan,

@@ -46,8 +46,9 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     const normalized = normalizeError(error);
-    // An expired/invalid token, or a verified identity with no local
-    // profile: sign out and bounce to login (but not while already there).
+    // An expired or invalid token: sign out and bounce to login (but not while already
+    // there). A verified identity with no local profile gets a 403 instead, which
+    // AuthContext handles when it loads the profile.
     if (normalized.status === 401 && window.location.pathname !== "/login") {
       signOut(auth);
       window.location.assign(

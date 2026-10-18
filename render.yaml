@@ -10,11 +10,11 @@
 # below, so Render asks for it interactively rather than trying to
 # provision one itself). See Docs/API_CONTRACT.md for the full walkthrough.
 #
-# CORS_ORIGINS below still needs your actual Vercel URL filled in by hand
-# once you know it, and BOOTSTRAP_ADMIN_PASSWORD's generated value has to
+# CORS_ORIGINS below is set to this project's Vercel URL - change it if yours
+# differs - and BOOTSTRAP_ADMIN_PASSWORD's generated value has to
 # be read from the dashboard after first deploy. FIREBASE_CREDENTIALS_JSON,
 # FIREBASE_PROJECT_ID and BOOTSTRAP_ADMIN_EMAIL all need a Firebase project
-# to exist first — see the Firebase-swap plan's "manual steps" section.
+# to exist first (Docs/API_CONTRACT.md, "Deploying to Vercel + Render").
 #
 # Free plan caveat: the service spins down after ~15 min idle and takes
 # ~50s to wake on the next request. Fine for a demo; upgrade to a paid
@@ -42,6 +42,8 @@ services:
         sync: false # a real mailbox you control — this becomes the first admin login
       - key: BOOTSTRAP_ADMIN_PASSWORD
         generateValue: true
+      - key: CRON_SECRET
+        sync: false # optional: enables POST /api/v1/cron/tick for the scheduled sync workflow
       - key: CORS_ORIGINS
         value: https://arth-setu-six.vercel.app
       - key: WEB_CONCURRENCY

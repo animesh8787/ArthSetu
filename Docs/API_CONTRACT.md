@@ -4,8 +4,11 @@ Base URL: `http://localhost:8000`
 Prefix: `/api/v1`
 Interactive docs: `http://localhost:8000/docs`
 
-All enum values are **lower_snake_case** strings (`active`, `dormant`, `closed`,
-`unknown`, `open`, `approved`, `rejected`, `auto_link`, `review`, `manual`).
+Stored enum values (business status, review status, link decision, job type/status, event type) are
+**lower_snake_case** strings (`active`, `dormant`, `closed`, `unknown`, `open`, `approved`, `rejected`,
+`auto_link`, `review`, `manual`). Two engine results are the exception and come back **UPPER_CASE**:
+`status` from `GET /status/{ubid}` (`ACTIVE`, `DORMANT`, `CLOSED`, `UNKNOWN`) and `decision` from
+`POST /matching/process/{id}` (`AUTO_LINK`, `REVIEW`, `NEW_ENTITY`). Invalid enum filters return `422`.
 
 ## Authentication
 
@@ -26,10 +29,12 @@ Roles (each includes the ones below it): **admin** > **reviewer** > **viewer**.
 | Corrections (split / status override / reassign / undo) | reviewer |
 | Batch status recompute (`POST /status/run-all`) | admin |
 | Trigger matching (`POST /matching/process/...`) | admin |
-| Import records (`POST /ingest/csv`, `/ingest/records`, `/ingest/process-pending`) | admin |
-| List source systems / pending count / template | viewer |
+| Import records and events (`POST /ingest/csv`, `/ingest/records`, `/ingest/events`, `/ingest/events/csv`, `/ingest/process-pending`) | admin |
+| Configure / run a connector (`PUT /ingest/source-systems/{code}/connector`, `POST .../sync`) | admin |
+| List source systems / pending count / templates (connector URLs are shown to admins only) | viewer |
+| Scheduled sync (`POST /cron/tick`) | shared secret (`X-Cron-Secret`), no user token |
 | Background jobs (`/jobs*`) | admin |
-| Matching weights & calibration (`/matching/weights`, `/matching/calibration`) | admin |
+| Matching weights & calibration (`/matching/weights`, `/matching/calibration*`) | admin |
 | User management (`/auth/users*`) | admin |
 
 `GET /api/v1/auth/me` → the local ArthSetu profile for the verified Firebase user:
@@ -49,10 +54,12 @@ Admin SDK server-side so an admin can set a colleague's password directly):
 `PATCH /api/v1/auth/users/{id}` → `{ full_name?, email?, role?, is_active? }` → `UserOut`
 `POST /api/v1/auth/users/{id}/reset-password` → `{ "new_password": "..." }` → `UserOut`
 
-There are no seeded demo accounts baked into the code anymore — the bootstrap
-admin (`BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD`) and, for local
-dev, `backend/seed_dev.py`'s four demo users are created directly in Firebase
-(the Auth Emulator in dev, a real project in production) on first boot.
+The API ships no hard-coded accounts: the bootstrap admin
+(`BOOTSTRAP_ADMIN_EMAIL` / `BOOTSTRAP_ADMIN_PASSWORD`) is created in Firebase on first boot
+(an existing Firebase account with that email is adopted), and the development seeder
+`backend/seed_dev.py` creates four publicly documented demo users - never run it against production.
+Changing a user's email through `PATCH /auth/users/{id}` also changes the Firebase login (`409` if the
+address is taken).
 
 ---
 
@@ -87,18 +94,20 @@ dev, `backend/seed_dev.py`'s four demo users are created directly in Firebase
 
 ## Business
 
-`GET /api/v1/business/search?q=&status=&district=&pin=&limit=25&offset=0`
-(`q` also matches address text; `pin` is an exact 6-digit filter)
+`GET /api/v1/business/search?q=&status=&district=&pin=&no_inspection_months=&limit=25&offset=0`
+(`q` is a case-insensitive substring match over UBID, name, PAN, GSTIN and address; `pin` is an exact
+6-digit filter; `district=Unknown` selects businesses with no district; `no_inspection_months=18` keeps
+businesses with no inspection in the last 18 months, including never-inspected ones)
 ```json
 { "total": 12, "limit": 25, "offset": 0,
-  "items": [{ "ubid": "UBID000019", "business_name": "Singh Auto Works",
+  "items": [{ "ubid": "UBID-1A2B3C4D5E", "business_name": "Singh Auto Works",
               "status": "active", "district": "Mandi Gobindgarh",
               "pin_code": "147301", "pan": "FKBJZ2744X", "gstin": null }] }
 ```
 
 `GET /api/v1/business/{ubid}`  (404 if unknown)
 ```json
-{ "ubid": "UBID000019", "business_name": "Singh Auto Works",
+{ "ubid": "UBID-1A2B3C4D5E", "business_name": "Singh Auto Works",
   "status": "active", "pan": "...", "gstin": null,
   "address": "Plot 42, Focal Point 3, Ludhiana, Punjab", "pin_code": "141001",
   "district": "Mandi Gobindgarh", "sector": "Restaurant",
@@ -122,7 +131,7 @@ dev, `backend/seed_dev.py`'s four demo users are created directly in Firebase
     "candidate_entity_id": "...", "candidate_name": "Gupta Traders",
     "status": "open", "confidence": 0.56,
     "evidence": { "candidate_name": "Gupta Traders", "confidence": 0.56,
-                  "reasons": ["Partial name similarity", "PAN missing on source record"] },
+                  "reasons": ["Name similarity 0.82", "Address similarity 0.6", "PIN code match (141001)"] },
     "notes": "Confidence 0.56. Manual verification required.",
     "reviewer_id": null, "created_at": "2026-09-04T08:29:16Z", "decided_at": null }] }
 ```
@@ -131,7 +140,11 @@ dev, `backend/seed_dev.py`'s four demo users are created directly in Firebase
 `POST /api/v1/reviews/{review_id}/reject`  (reviewer role)
 - No body. The reviewer is taken from the bearer token and recorded in the audit trail.
 - Approve confirms the proposed link (creates/promotes an `entity_record_link`,
-  decision `manual`) and writes an audit row. Reject leaves the record separate.
+  decision `manual`), closes any other open case for the same record, and writes an audit row.
+- Reject gives the record its **own** business identity (a new UBID with a founding link) and
+  writes an audit row; undo removes that identity again while it is still unused.
+- A case that is already decided answers `409`; approving a record that is already linked to a
+  different business answers `409`.
 
 ## Corrections  (reviewer role — reversible graph edits)
 
@@ -153,17 +166,19 @@ status. The engine keeps recording its opinion in snapshots but stops changing
 different business; both entities' statuses are recomputed.
 
 `POST /api/v1/corrections/undo/{audit_id}` — reverses any of the above (and
-approve/reject); refuses a second undo of the same action.
+approve/reject). It refuses a second undo of the same action, and refuses while a later,
+still-active correction depends on the same link, record or business (undo that one first).
 ```json
-{ "message": "Review approved and link confirmed", "review_id": "...",
-  "status": "approved", "linked_entity_id": "...", "link_id": "..." }
+{ "message": "Approval undone - link reverted, case reopened",
+  "audit_id": "...", "detail": null }
 ```
 
 ## Status Engine
 
-`GET /api/v1/status/{ubid}`  — recomputes + persists a snapshot, returns:
+`GET /api/v1/status/{ubid}`  (reviewer) — recomputes + persists a snapshot, returns the
+upper-case `status`. A business with no activity events is `UNKNOWN` (confidence 0), not `CLOSED`:
 ```json
-{ "business_entity_id": "...", "ubid_code": "UBID000019", "status": "ACTIVE",
+{ "business_entity_id": "...", "ubid_code": "UBID-1A2B3C4D5E", "status": "ACTIVE",
   "confidence": 0.735, "reasons": ["POWER_USAGE: base=0.82, age=13d, decay=1.0, score=0.82", ...] }
 ```
 `POST /api/v1/status/run-all`  (admin) — queues a batch recompute as a
@@ -190,15 +205,19 @@ fixed constants (defaults shown):
 | Name similarity | 0.42 × score | token-sort fuzzy ratio |
 | Address similarity | 0.28 × score | token-set ratio, filler words removed |
 | PIN code exact | 0.12 | only counts when name similarity ≥ 0.35 |
+| Contact (phone or email exact) | 0.06 | phone compared on its last 10 digits; only counts when name similarity ≥ 0.35 |
 
 `decision` is `AUTO_LINK` at ≥ `auto_link_threshold` (0.92), `REVIEW` at ≥
-`review_threshold` (0.70), otherwise `NEW_ENTITY`. A strong name + address +
-PIN match reaches `REVIEW` but never `AUTO_LINK` without an id anchor.
+`review_threshold` (0.70), otherwise `NEW_ENTITY` (the best candidate's score and reasons are kept in the
+link's explanation). With the default weights, name + address + PIN + contact tops out at 0.88, so it
+reaches `REVIEW` but never `AUTO_LINK` without an id anchor - an admin who retunes the weights can change
+that. Processing is idempotent: a record that is already linked or in review keeps its decision.
 
-`GET /api/v1/matching/weights`  (admin) → the eight tunable values above
+`GET /api/v1/matching/weights`  (admin) → the nine tunable values above
 plus `updated_by` / `updated_at`.
 `PUT /api/v1/matching/weights`  (admin) — partial update, e.g.
-`{ "review_threshold": 0.65 }`; each field is `0..1`.
+`{ "review_threshold": 0.65 }`; each field is `0..1`, and `review_threshold` must not exceed
+`auto_link_threshold` (`422` otherwise).
 
 `GET /api/v1/matching/calibration`  (admin) — reviewer-feedback calibration:
 buckets review cases by confidence range and shows the approve/reject split
@@ -211,10 +230,26 @@ support for tuning the weights above, not auto-tuning.
   "signals": [{ "signal": "Name", "approved": 1, "rejected": 0 }],
   "sample_size": 157 }
 ```
+Bucket edges follow the live thresholds: three equal bands across the review range, then the auto-link range.
+
+`GET /api/v1/matching/calibration/suggestion`  (admin) — **learned weights**. A small L2-regularised
+logistic regression (numpy) is fitted on the evidence of approved / rejected review cases and its
+coefficients become *suggested* weights. Needs 20+ decided cases with 5+ of each outcome (`ready: false`
+and a `message` otherwise). A signal that never varies in the review band (typically GSTIN) is left alone;
+every suggestion is clamped to 0.25x-2.5x of the current weight.
+```json
+{ "ready": true, "message": null, "decided": 62, "approved": 40, "rejected": 22, "accuracy": 0.9,
+  "signals": [{ "field": "name_weight", "label": "Name similarity", "coefficient": 3.1,
+                "approved_avg": 0.93, "rejected_avg": 0.61, "current_weight": 0.42,
+                "suggested_weight": 0.55, "learned": true }] }
+```
+`POST /api/v1/matching/calibration/apply`  (admin) — recomputes the suggestion server-side and applies it
+(`422` if not ready). Nothing is ever applied automatically.
 
 ## Ingestion
 
-`GET /api/v1/ingest/source-systems` → `[{ code, name, department, record_count }]`
+`GET /api/v1/ingest/source-systems` → `[{ code, name, department, record_count, pull_url, pull_kind,
+last_pull_at, last_pull_status }]` (`pull_url` is `null` unless you are an admin)
 `GET /api/v1/ingest/pending` → `{ "pending": 157 }` (records not linked and not in review)
 `GET /api/v1/ingest/template` → a sample CSV (`text/csv`)
 
@@ -244,6 +279,46 @@ Both return an ingestion report:
 `matching` is populated inline only if the job already finished by response
 time (small batches, or `JOBS_SYNC=1`); otherwise poll `GET /jobs/{job_id}`.
 
+### Activity events
+
+Departments' filings, renewals, inspections and power readings. `event_type` is one of `gst_filed`,
+`license_renewed`, `inspection`, `power_usage`, `employee_filing`, `payment_received`, `complaint`,
+`document_update`, `zero_power_usage`, `suspension_notice`, `closure_notice`, `license_cancelled`.
+
+`POST /api/v1/ingest/events`  (admin, JSON)
+```json
+{ "source_system_code": "LABOUR",
+  "events": [{ "ubid": "UBID-1A2B3C4D5E", "event_type": "gst_filed", "occurred_at": "2026-09-30" },
+             { "gstin": "03ABCDE1234F1Z5", "event_type": "inspection", "occurred_at": "2026-08-14" },
+             { "external_id": "L-1001", "event_type": "license_renewed", "occurred_at": "2026-07-01" }] }
+```
+`POST /api/v1/ingest/events/csv`  (admin, `multipart/form-data`: `file`, optional `source_system_code`) —
+same rows as CSV (`ubid`, `gstin`, `pan`, `external_id`, `event_type`, `occurred_at`; `GET /ingest/events/template`).
+
+A row names its business by `ubid`, else `gstin`, else `pan`, else the department's own `external_id`
+(needs `source_system_code`). Dates accept `YYYY-MM-DD` and `DD-MM-YYYY`. Re-sending a feed is harmless
+(same business + type + date is skipped). Affected statuses are recomputed immediately (up to 200 businesses
+per request; larger feeds wait for the next scheduled recompute).
+```json
+{ "rows_read": 3, "created": 3, "skipped_duplicates": 0, "unresolved": 0,
+  "errors": [], "recomputed": 2 }
+```
+
+### Connectors and the scheduler
+
+`PUT /api/v1/ingest/source-systems/{code}/connector`  (admin)
+`{ "pull_url": "https://dept.example/export.csv", "pull_kind": "records" | "events" }` (`pull_url: null`
+removes it). The URL must be `https` and resolve to a public address (`422` otherwise); redirects are not
+followed; an export is capped at 8 MB; CSV and JSON (`[...]` or `{"records": [...]}` / `{"events": [...]}`)
+are both accepted and use the same loose column matching as the CSV import.
+`POST /api/v1/ingest/source-systems/{code}/sync`  (admin) — pulls it now → `202` + a `sync_connectors` job.
+The outcome is also stored on the system (`last_pull_at`, `last_pull_status`).
+
+`POST /api/v1/cron/tick`  (header `X-Cron-Secret: <CRON_SECRET>`; `404` while `CRON_SECRET` is unset,
+`401` on a wrong secret) → `202` + a `sync_connectors` job with `full_cycle`: pull every connector, match
+pending records, recompute every status. Jobs left `pending`/`running` by a restart are marked `failed` on
+the next boot.
+
 `POST /api/v1/ingest/process-pending?limit=1000`  (admin) — queues a
 `process_pending` job over every unresolved source record → `202` + a `Job`.
 Its `result` is `{ processed, auto_link, review, new_entity, failed }`.
@@ -267,13 +342,15 @@ that queue one return `202` with the `Job` below immediately; poll it.
   "finished_at": "..." }
 ```
 `status` is `pending` → `running` → `succeeded` / `failed`. `job_type` is
-one of `status_run_all`, `process_pending`, `csv_match`.
+one of `status_run_all`, `process_pending`, `csv_match`, `sync_connectors`.
 
 ---
 
 ## Audit
 
-`GET /api/v1/audit?entity_type=&entity_id=&action=&limit=50&offset=0`
+`GET /api/v1/audit?entity_type=&entity_id=&action=&business_id=&limit=50&offset=0`
+(`business_id` returns everything that happened to one business: its own changes, its links, review
+cases about it, its events and corrections; `404` for an unknown id)
 ```json
 { "total": 486, "limit": 50, "offset": 0,
   "items": [{ "id": "...", "actor_type": "system", "actor_id": null,
@@ -313,8 +390,10 @@ Brings up Postgres, the API (`alembic upgrade head` runs on container start)
 on `:8000`, and the frontend behind nginx on `:8080` (nginx proxies `/api/`
 to the backend container, so the SPA needs no CORS config). With no `.env`
 file this runs in `APP_ENV=development` with insecure demo defaults, but
-sign-in still needs a Firebase Auth target (the emulator, normally — see
-**Local development** above) since there's no local-only auth bypass. On
+sign-in still needs a Firebase Auth target: the web-app config as `VITE_FIREBASE_*` in `.env` (baked into
+the frontend image - rebuild after changing it), or an Auth Emulator on the host
+(`FIREBASE_AUTH_EMULATOR_HOST=host.docker.internal:9099` for the backend,
+`VITE_FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099` for the browser). There is no local-only auth bypass. On
 first boot, if the `user_account` table is empty, the API creates one admin
 account — in Firebase and locally — from `BOOTSTRAP_ADMIN_EMAIL` /
 `BOOTSTRAP_ADMIN_PASSWORD` (default `admin@arthsetu.local` /
@@ -363,7 +442,8 @@ list needs the frontend's URL, the frontend's build needs the backend's URL
    create a project, copy its connection string — looks like
    `postgresql://user:password@host/dbname?sslmode=require`. That works
    as-is for `DATABASE_URL`; SQLAlchemy defaults to the psycopg2 driver
-   already in `backend/requirements.txt`, no `+psycopg2` suffix needed.
+   already in `backend/requirements.txt`, no `+psycopg2` suffix needed
+   (a `postgres://` scheme is rewritten to `postgresql://` automatically).
 
 1a. **Firebase setup.** Create a project at
    [console.firebase.google.com](https://console.firebase.google.com),
@@ -382,8 +462,8 @@ list needs the frontend's URL, the frontend's build needs the backend's URL
    after it deploys — you'll need it to log in); `FIREBASE_CREDENTIALS_JSON`,
    `FIREBASE_PROJECT_ID`, and `BOOTSTRAP_ADMIN_EMAIL` need a Firebase
    project to exist first (see **Firebase setup** below) and are pasted in
-   by hand. `CORS_ORIGINS` in the blueprint is a placeholder; you'll come
-   back to it in step 4. Note the service's
+   by hand. `CORS_ORIGINS` in the blueprint already names the project's own
+   Vercel URL - change it in step 4 if yours differs. Note the service's
    `https://arthsetu-backend.onrender.com`-style URL once it's live and
    healthy. (Free plan: spins down after ~15 min idle, ~50s cold start on
    the next request — fine for a demo.)
@@ -427,3 +507,10 @@ list needs the frontend's URL, the frontend's build needs the backend's URL
    replacing the bootstrap admin with the seeder's own demo accounts (see
    `DEMO_USERS` in `backend/seed_dev.py`; edit the placeholder emails there
    first if seeding a real Firebase project rather than the emulator).
+
+6. **Optional: scheduled sync.** To pull connectors, match new records and refresh statuses
+   automatically, set `CRON_SECRET` on the Render service (any long random string), then in the GitHub
+   repo add the same value as the Actions secret `CRON_SECRET` and the repository variable `BACKEND_URL`
+   (e.g. `https://arthsetu-backend.onrender.com`). [`scheduled-sync.yml`](../.github/workflows/scheduled-sync.yml)
+   calls `POST /api/v1/cron/tick` every 6 hours and does nothing while those are unset. On the free
+   plan the first call also wakes the service (~50 s), which the workflow allows for.

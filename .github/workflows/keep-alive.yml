@@ -1,5 +1,8 @@
 name: Keep Render Backend Alive
 
+# Render's free plan spins the API down after ~15 minutes idle. This pings it on a
+# schedule so the first visitor does not wait ~50 s. Set the repository variable
+# BACKEND_URL to your backend's origin (it falls back to the project's own service).
 on:
   schedule:
     - cron: "7,17,27,37,47,57 * * * *"
@@ -10,8 +13,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Ping TalentRank API
+      - name: Ping the ArthSetu API
+        env:
+          BACKEND_URL: ${{ vars.BACKEND_URL || 'https://arthsetu-backend-xyxu.onrender.com' }}
         run: |
           curl --fail --silent --show-error \
             --max-time 90 \
-            https://arthsetu-backend-xyxu.onrender.com/api/v1/health
+            "$BACKEND_URL/api/v1/health"

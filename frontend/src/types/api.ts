@@ -182,13 +182,6 @@ export interface CorrectionResult {
   detail: unknown;
 }
 
-export interface MatchingResult {
-  decision: string;
-  confidence: number;
-  business_entity_id: string | null;
-  reasons: string[];
-}
-
 export interface AuditEntry {
   id: string;
   actor_type: string;
@@ -260,14 +253,6 @@ export interface IngestionReport {
   errors: { row: number; error: string }[];
   matching: MatchingTally | null;
   job_id: string | null;
-}
-
-export interface ProcessPendingResult {
-  processed: number;
-  auto_link: number;
-  review: number;
-  new_entity: number;
-  failed: number;
 }
 
 // --- Background jobs ----------------------------------------------------

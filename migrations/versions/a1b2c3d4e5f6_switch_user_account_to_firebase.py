@@ -25,8 +25,9 @@ def upgrade() -> None:
     values are meaningless once Firebase is the identity source, and
     usernames aren't a stable key to carry over to email-based login.
     Every user (including the bootstrap admin) gets recreated in Firebase
-    and re-provisioned locally after this migration runs — see the
-    Firebase-swap plan's "manual steps" section.
+    and re-provisioned locally after this migration runs: the bootstrap
+    admin is re-created (or its existing Firebase account adopted) on the
+    next start, other users need to be added again by that admin.
     """
     op.execute("DELETE FROM user_account")
 
@@ -51,6 +52,7 @@ def downgrade() -> None:
         batch_op.alter_column('email', existing_type=sa.String(length=255), nullable=True)
         batch_op.drop_index(batch_op.f('ix_user_account_firebase_uid'))
         batch_op.drop_column('firebase_uid')
-        batch_op.add_column(sa.Column('hashed_password', sa.String(length=255), nullable=False))
-        batch_op.add_column(sa.Column('username', sa.String(length=64), nullable=False))
+        # server_default so the downgrade also works if rows were added since the upgrade
+        batch_op.add_column(sa.Column('hashed_password', sa.String(length=255), nullable=False, server_default=''))
+        batch_op.add_column(sa.Column('username', sa.String(length=64), nullable=False, server_default=''))
         batch_op.create_index(batch_op.f('ix_user_account_username'), ['username'], unique=True)

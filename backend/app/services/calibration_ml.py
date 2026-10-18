@@ -128,7 +128,7 @@ def suggestion(db: Session) -> Dict[str, Any]:
     for i, (field, label, _, _) in enumerate(SIGNALS):
         suggested = current[field]
         if varies[i]:
-            share = pool * positive[i] / positive.sum()
+            share = float(pool * positive[i] / positive.sum())  # plain float: numpy types break SQL binds
             suggested = min(1.0, max(current[field] * CLAMP_LOW, min(share, current[field] * CLAMP_HIGH)))
         approved_mean = float(X[y == 1, i].mean())
         rejected_mean = float(X[y == 0, i].mean())
