@@ -6,7 +6,7 @@ on:
 
 jobs:
   backend:
-    name: Backend (SQLite: pytest + migrations)
+    name: Backend (SQLite - pytest, migrations)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +31,7 @@ jobs:
         run: python -m pytest
 
   backend-postgres:
-    name: Backend (PostgreSQL: migrations + pytest)
+    name: Backend (PostgreSQL - migrations, pytest)
     runs-on: ubuntu-latest
     services:
       postgres:
