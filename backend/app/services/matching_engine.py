@@ -1,5 +1,5 @@
 # ============================================================
-# FILE: backend/app/services/match_engine.py
+# FILE: backend/app/services/matching_engine.py
 # ============================================================
 
 from __future__ import annotations
@@ -150,6 +150,11 @@ def process_source_record(
     if not source_record:
         raise ValueError("SourceRecord not found")
 
+    # Idempotent: a record that is already linked or awaiting review keeps its decision.
+    settled = _existing_decision(db, source_record.id)
+    if settled is not None:
+        return _to_dict(settled)
+
     try:
         weights = get_weights(db)
         candidates = _find_candidates(db, source_record)
@@ -180,7 +185,9 @@ def process_source_record(
             )
 
         else:
-            result = _create_new_entity(db, source_record)
+            result = _create_new_entity(
+                db, source_record, best_score=score, best_reasons=reasons
+            )
 
         db.commit()
         return _to_dict(result)
@@ -188,6 +195,37 @@ def process_source_record(
     except Exception:
         db.rollback()
         raise
+
+
+def _existing_decision(db: Session, source_record_id: UUID) -> Optional[MatchResult]:
+    link = (
+        db.query(EntityRecordLink)
+        .filter(EntityRecordLink.source_record_id == source_record_id)
+        .first()
+    )
+    if link is not None:
+        return MatchResult(
+            decision=link.decision.name if link.decision else "AUTO_LINK",
+            confidence=link.confidence or 0.0,
+            business_entity_id=link.business_entity_id,
+            reasons=["Already linked"],
+        )
+    case = (
+        db.query(ReviewCase)
+        .filter(
+            ReviewCase.source_record_id == source_record_id,
+            ReviewCase.status == ReviewCaseStatusEnum.OPEN,
+        )
+        .first()
+    )
+    if case is not None:
+        return MatchResult(
+            decision="REVIEW",
+            confidence=case.confidence or 0.0,
+            business_entity_id=case.candidate_entity_id,
+            reasons=["Already in the review queue"],
+        )
+    return None
 
 
 # ============================================================
@@ -208,15 +246,21 @@ def _find_candidates(
 
     name = normalize_text(source_record.extracted_name)
     source_pin = normalize_pin(source_record.extracted_pin)
+    src_pan = source_record.extracted_pan or _pan_from_gstin(source_record.extracted_gstin)
+
+    # Exact government ids first, so a crowded PIN or name prefix can never push the
+    # true owner of a GSTIN/PAN out of the candidate window.
+    exact = []
+    if source_record.extracted_gstin:
+        exact.append(BusinessEntity.gstin == source_record.extracted_gstin)
+    if src_pan:
+        exact.append(BusinessEntity.pan == src_pan)
+        exact.append(BusinessEntity.gstin.like(f"__{src_pan}%"))
+    found: List[BusinessEntity] = (
+        db.query(BusinessEntity).filter(or_(*exact)).limit(50).all() if exact else []
+    )
 
     conditions = []
-
-    if source_record.extracted_gstin:
-        conditions.append(BusinessEntity.gstin == source_record.extracted_gstin)
-
-    if source_record.extracted_pan:
-        conditions.append(BusinessEntity.pan == source_record.extracted_pan)
-
     for token in _name_block_tokens(name):
         conditions.append(BusinessEntity.normalized_name.ilike(f"{token}%"))
         conditions.append(BusinessEntity.normalized_name.ilike(f"% {token}%"))
@@ -224,15 +268,17 @@ def _find_candidates(
     if source_pin:
         conditions.append(BusinessEntity.pin_code == source_pin)
 
-    if not conditions:
-        return []
+    if conditions and len(found) < 50:
+        seen = {e.id for e in found}
+        fuzzy = (
+            db.query(BusinessEntity)
+            .filter(or_(*conditions))
+            .limit(50)
+            .all()
+        )
+        found.extend(e for e in fuzzy if e.id not in seen)
 
-    return (
-        db.query(BusinessEntity)
-        .filter(or_(*conditions))
-        .limit(50)
-        .all()
-    )
+    return found[:50]
 
 
 # ============================================================
@@ -408,13 +454,28 @@ def _create_review_case(
 def _create_new_entity(
     db: Session,
     source_record: SourceRecord,
+    best_score: Optional[float] = None,
+    best_reasons: Optional[List[str]] = None,
 ) -> MatchResult:
+
+    # PAN is shared by every branch GSTIN of one legal entity, but the column is
+    # unique: only the first entity keeps it, the rest still match via their GSTIN.
+    pan = source_record.extracted_pan
+    if pan and db.query(BusinessEntity.id).filter(BusinessEntity.pan == pan).first():
+        pan = None
+
+    explanation = ["No reliable candidate found"]
+    if best_reasons:
+        explanation = [
+            f"Best candidate scored {best_score} (below review threshold)",
+            *best_reasons,
+        ]
 
     entity = BusinessEntity(
         ubid_code=generate_ubid(),
         legal_name=source_record.extracted_name or "UNKNOWN",
         normalized_name=normalize_text(source_record.extracted_name),
-        pan=source_record.extracted_pan,
+        pan=pan,
         gstin=source_record.extracted_gstin,
         address=source_record.extracted_address,
         normalized_address=normalize_address(source_record.extracted_address),
@@ -428,12 +489,13 @@ def _create_new_entity(
     link = EntityRecordLink(
         source_record_id=source_record.id,
         business_entity_id=entity.id,
-        confidence=1.0,
+        confidence=None,  # founding record: nothing was matched, so no score to report
         decision=LinkDecisionEnum.AUTO_LINK,
-        explanation=["No reliable candidate found"],
+        explanation=explanation,
     )
 
     db.add(link)
+    db.flush()
 
     _audit(
         db,
@@ -451,7 +513,7 @@ def _create_new_entity(
         decision="NEW_ENTITY",
         confidence=0.0,
         business_entity_id=entity.id,
-        reasons=["No reliable candidate found"],
+        reasons=explanation,
     )
 
 

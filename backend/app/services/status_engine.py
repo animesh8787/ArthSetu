@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.app.services.event_scoring import (
@@ -115,7 +116,7 @@ def _fetch_events(
     return (
         db.query(ActivityEvent)
         .filter(ActivityEvent.business_entity_id == business_entity_id)
-        .order_by(ActivityEvent.created_at.desc())
+        .order_by(func.coalesce(ActivityEvent.occurred_at, ActivityEvent.created_at).desc())
         .all()
     )
 
@@ -127,10 +128,11 @@ def _event_type_value(event: ActivityEvent) -> str:
 
 def _infer_from_events(events: List[ActivityEvent]) -> Dict[str, Any]:
     if not events:
+        # No evidence either way is not evidence of closure.
         return {
-            "status": "CLOSED",
-            "status_enum": EntityStatusEnum.CLOSED,
-            "confidence": 0.92,
+            "status": "UNKNOWN",
+            "status_enum": EntityStatusEnum.UNKNOWN,
+            "confidence": 0.0,
             "reasons": ["No activity history on record"],
         }
 

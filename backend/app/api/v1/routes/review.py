@@ -9,6 +9,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from backend.app.api.deps import ReviewerUser
+from backend.app.db.enums import ReviewCaseStatusEnum
 from backend.app.db.session import get_db
 from backend.app.db.models.review_case import ReviewCase
 from backend.app.db.models.business_entity import BusinessEntity
@@ -20,6 +21,7 @@ from backend.app.schemas import (
     ReviewListResponse,
 )
 from backend.app.services.review_service import (
+    ReviewConflict,
     approve_review_case,
     reject_review_case,
 )
@@ -35,13 +37,13 @@ def _enum_value(value) -> str:
 @router.get("/", response_model=ReviewListResponse, include_in_schema=False)
 def list_review_cases(
     db: Session = Depends(get_db),
-    status: str | None = Query(default=None),
+    status: ReviewCaseStatusEnum | None = Query(default=None),
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
     query = db.query(ReviewCase)
     if status:
-        query = query.filter(ReviewCase.status == status.lower())
+        query = query.filter(ReviewCase.status == status)
 
     total = query.with_entities(func.count(ReviewCase.id)).scalar() or 0
 
@@ -117,6 +119,8 @@ def approve_review(
         return approve_review_case(
             db=db, review_id=review_id, reviewer_id=reviewer.email
         )
+    except ReviewConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))
 
@@ -131,5 +135,7 @@ def reject_review(
         return reject_review_case(
             db=db, review_id=review_id, reviewer_id=reviewer.email
         )
+    except ReviewConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc))

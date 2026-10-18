@@ -93,5 +93,5 @@ def test_status_recompute_persists_snapshot(client, seed, token):
     resp = client.get("/api/v1/status/UBID000001", headers=token("reviewer"))
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] in {"ACTIVE", "DORMANT", "CLOSED"}
+    assert body["status"] in {"ACTIVE", "DORMANT", "CLOSED", "UNKNOWN"}
     assert isinstance(body["reasons"], list)

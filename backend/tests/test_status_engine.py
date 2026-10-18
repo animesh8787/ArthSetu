@@ -20,10 +20,11 @@ def ev(event_type: str, days_ago: int, score: float = 0.0):
     )
 
 
-def test_no_events_is_closed():
+def test_no_events_is_unknown_not_closed():
     result = _infer_from_events([])
-    assert result["status"] == "CLOSED"
-    assert result["status_enum"] is EntityStatusEnum.CLOSED
+    assert result["status"] == "UNKNOWN"
+    assert result["status_enum"] is EntityStatusEnum.UNKNOWN
+    assert result["confidence"] == 0.0
 
 
 def test_hard_closure_signal_wins():

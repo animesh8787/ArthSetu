@@ -10,8 +10,9 @@ from backend.app.db.types import str_enum
 class EntityRecordLink(Base, UUIDPKMixin, TimestampMixin):
     __tablename__ = "entity_record_link"
 
+    # One link per record: a record belongs to exactly one business.
     source_record_id = mapped_column(
-        ForeignKey("source_record.id"), index=True
+        ForeignKey("source_record.id"), index=True, unique=True
     )
     business_entity_id = mapped_column(
         ForeignKey("business_entity.id"), index=True

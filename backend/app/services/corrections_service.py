@@ -24,6 +24,7 @@ from backend.app.db.models.business_entity import BusinessEntity
 from backend.app.db.models.entity_record_link import EntityRecordLink
 from backend.app.db.models.review_case import ReviewCase
 from backend.app.db.models.source_record import SourceRecord
+from backend.app.db.models.status_snapshot import StatusSnapshot
 from backend.app.services.scoring import normalize_address, normalize_pin, normalize_text
 from backend.app.services.status_engine import infer_business_status
 from backend.app.services.ubid_service import generate_ubid
@@ -292,6 +293,7 @@ def undo(db: Session, audit_id: str, reviewer: str) -> dict:
 
     before = original.before_state or {}
     after = original.after_state or {}
+    _ensure_latest(db, original, before, after)
     summary = _reverse(db, original.action, before, after, original.entity_id)
 
     _audit(
@@ -302,6 +304,38 @@ def undo(db: Session, audit_id: str, reviewer: str) -> dict:
     )
     db.commit()
     return {"message": summary, "audit_id": str(original.id), "detail": None}
+
+
+_REF_KEYS = ("link_id", "source_record_id", "review_case_id", "new_entity_id")
+
+
+def _refs(row_entity_id: Any, *states: dict) -> set[str]:
+    refs = {str(row_entity_id)} if row_entity_id else set()
+    for state in states:
+        refs.update(str(state[k]) for k in _REF_KEYS if state.get(k))
+    return refs
+
+
+def _ensure_latest(db: Session, original: AuditLog, before: dict, after: dict) -> None:
+    """Refuse an undo while a later, still-active correction builds on the same records."""
+    mine = _refs(original.entity_id, before, after)
+    later = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.action.in_(REVERSIBLE_ACTIONS),
+            AuditLog.created_at > original.created_at,
+            AuditLog.id != original.id,
+        )
+        .all()
+    )
+    for row in later:
+        if is_undone(db, row.id):
+            continue
+        if mine & _refs(row.entity_id, row.before_state or {}, row.after_state or {}):
+            raise ValueError(
+                f"A later change ({row.action.replace('_', ' ').lower()}) depends on this one - "
+                "undo that first"
+            )
 
 
 def _reverse(
@@ -320,8 +354,22 @@ def _reverse(
         return "Approval undone - link reverted, case reopened"
 
     if action == "REVIEW_REJECTED":
+        entity_id = after.get("new_entity_id")
+        if entity_id:
+            entity = db.get(BusinessEntity, _uuid(entity_id))
+            if entity is not None:
+                if _entity_in_use(db, entity.id, ignore_link=after.get("link_id")):
+                    raise ValueError(
+                        "This business has gained links or history since the rejection, "
+                        "so it cannot be removed"
+                    )
+                link = db.get(EntityRecordLink, _uuid(after["link_id"])) if after.get("link_id") else None
+                if link is not None:
+                    db.delete(link)
+                    db.flush()
+                db.delete(entity)
         _reopen_case(db, subject_id)
-        return "Rejection undone - case reopened"
+        return "Rejection undone - the new business was removed and the case reopened"
 
     if action == "LINK_SPLIT":
         return _reverse_split(db, before, after)
@@ -340,6 +388,24 @@ def _reverse(
         return "Event reassignment undone"
 
     raise ValueError(f"No reverse handler for {action}")
+
+
+def _entity_in_use(db: Session, entity_id: Any, ignore_link: str | None = None) -> bool:
+    """True when anything besides one known founding link points at the entity."""
+    links = db.query(EntityRecordLink.id).filter(
+        EntityRecordLink.business_entity_id == entity_id
+    )
+    if ignore_link:
+        links = links.filter(EntityRecordLink.id != _uuid(ignore_link))
+    return any(
+        q.first() is not None
+        for q in (
+            links,
+            db.query(ActivityEvent.id).filter(ActivityEvent.business_entity_id == entity_id),
+            db.query(StatusSnapshot.id).filter(StatusSnapshot.business_entity_id == entity_id),
+            db.query(ReviewCase.id).filter(ReviewCase.candidate_entity_id == entity_id),
+        )
+    )
 
 
 def _reopen_case(db: Session, review_case_id: str | None) -> None:
@@ -367,20 +433,12 @@ def _reverse_split(db: Session, before: dict, after: dict) -> str:
             link.confidence = before.get("confidence") or link.confidence
             link.explanation = {"source": "split_undo"}
             db.flush()
-            # drop the entity we created if nothing else points at it
-            if after.get("created_entity"):
-                remaining = (
-                    db.query(EntityRecordLink)
-                    .filter(EntityRecordLink.business_entity_id == created_id)
-                    .count()
-                )
-                if remaining == 0:
-                    stray = db.get(BusinessEntity, created_id)
-                    if stray:
-                        db.query(ActivityEvent).filter(
-                            ActivityEvent.business_entity_id == created_id
-                        ).delete(synchronize_session=False)
-                        db.delete(stray)
+            # drop the entity we created only if it is still a bare shell - never
+            # delete history (events, snapshots, cases) to make an undo succeed
+            if after.get("created_entity") and not _entity_in_use(db, created_id):
+                stray = db.get(BusinessEntity, created_id)
+                if stray:
+                    db.delete(stray)
         return "Split undone - record relinked to the original business"
 
     # reopen_review mode: delete the reopened case, recreate the link

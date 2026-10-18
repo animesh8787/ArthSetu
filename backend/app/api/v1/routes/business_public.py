@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
+from backend.app.db.enums import EntityStatusEnum
 from backend.app.db.session import get_db
 from backend.app.db.models.business_entity import BusinessEntity
 from backend.app.db.models.entity_record_link import EntityRecordLink
@@ -34,7 +35,7 @@ def _enum_value(value) -> str:
 def search_businesses(
     db: Session = Depends(get_db),
     q: str | None = Query(default=None, description="UBID, name, PAN or GSTIN"),
-    status: str | None = Query(default=None),
+    status: EntityStatusEnum | None = Query(default=None),
     district: str | None = Query(default=None),
     pin: str | None = Query(default=None, description="6-digit PIN code"),
     limit: int = Query(default=25, ge=1, le=100),
@@ -55,8 +56,10 @@ def search_businesses(
             )
         )
     if status:
-        query = query.filter(BusinessEntity.status == status.lower())
-    if district:
+        query = query.filter(BusinessEntity.status == status)
+    if district == "Unknown":  # analytics labels null districts "Unknown"
+        query = query.filter(BusinessEntity.district.is_(None))
+    elif district:
         query = query.filter(BusinessEntity.district.ilike(f"%{district}%"))
     if pin:
         query = query.filter(BusinessEntity.pin_code == pin.strip())
@@ -132,12 +135,13 @@ def get_business_profile(ubid: str, db: Session = Depends(get_db)):
     if link_rows:
         best = max(link_rows, key=lambda t: t[0].confidence or 0)
         best_link = best[0]
-        evidence.append(
-            MatchingEvidence(
-                signal="Best link confidence",
-                value=f"{round((best_link.confidence or 0) * 100)}%",
+        if best_link.confidence is not None:
+            evidence.append(
+                MatchingEvidence(
+                    signal="Best link confidence",
+                    value=f"{round(best_link.confidence * 100)}%",
+                )
             )
-        )
         expl = best_link.explanation
         reasons = []
         if isinstance(expl, dict):
@@ -158,7 +162,9 @@ def get_business_profile(ubid: str, db: Session = Depends(get_db)):
     events = (
         db.query(ActivityEvent)
         .filter(ActivityEvent.business_entity_id == entity.id)
-        .order_by(ActivityEvent.created_at.desc())
+        .order_by(
+            func.coalesce(ActivityEvent.occurred_at, ActivityEvent.created_at).desc()
+        )
         .limit(25)
         .all()
     )

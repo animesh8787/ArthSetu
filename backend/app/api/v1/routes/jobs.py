@@ -11,6 +11,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from backend.app.db.enums import JobStatusEnum, JobTypeEnum
 from backend.app.db.session import get_db
 from backend.app.db.models.job import Job
 from backend.app.schemas import JobListResponse, JobOut
@@ -24,8 +25,8 @@ DbSession = Annotated[Session, Depends(get_db)]
 @router.get("", response_model=JobListResponse)
 def list_jobs(
     db: DbSession,
-    job_type: Optional[str] = None,
-    status: Optional[str] = None,
+    job_type: Optional[JobTypeEnum] = None,
+    status: Optional[JobStatusEnum] = None,
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ):
