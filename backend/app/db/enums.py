@@ -53,6 +53,7 @@ class JobTypeEnum(str, enum.Enum):
     STATUS_RUN_ALL = "status_run_all"
     PROCESS_PENDING = "process_pending"
     CSV_MATCH = "csv_match"
+    SYNC_CONNECTORS = "sync_connectors"
 
 
 class JobStatusEnum(str, enum.Enum):

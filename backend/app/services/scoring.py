@@ -101,3 +101,18 @@ def normalize_pin(value: Optional[str]) -> str:
 def pin_matches(a: Optional[str], b: Optional[str]) -> bool:
     na, nb = normalize_pin(a), normalize_pin(b)
     return bool(na) and na == nb
+
+
+# ------------------------------------------------------------
+# Contact details
+# ------------------------------------------------------------
+
+def normalize_phone(value: Optional[str]) -> str:
+    """Last 10 digits of an Indian phone number (drops +91 / 0 prefixes), or ''."""
+    digits = re.sub(r"\D", "", str(value or ""))
+    return digits[-10:] if len(digits) >= 10 else ""
+
+
+def normalize_email(value: Optional[str]) -> str:
+    email = str(value or "").strip().lower()
+    return email if "@" in email and "." in email.rsplit("@", 1)[-1] else ""

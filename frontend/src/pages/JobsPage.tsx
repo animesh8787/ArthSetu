@@ -26,6 +26,7 @@ const TYPE_OPTIONS = [
   { value: "status_run_all", label: "Status recompute" },
   { value: "process_pending", label: "Process pending" },
   { value: "csv_match", label: "CSV matching" },
+  { value: "sync_connectors", label: "Connector sync" },
 ];
 
 const STATUS_OPTIONS = [

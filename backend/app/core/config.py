@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # e.g. "127.0.0.1:9099" (or "host.docker.internal:9099" inside Docker).
     FIREBASE_AUTH_EMULATOR_HOST: str = ""
 
+    # Shared secret for POST /api/v1/cron/tick (the scheduled sync). Empty disables it.
+    CRON_SECRET: str = ""
+
     # First-run bootstrap admin (created by the seeder / on empty user table).
     BOOTSTRAP_ADMIN_EMAIL: str = "admin@arthsetu.local"
     BOOTSTRAP_ADMIN_PASSWORD: str = _INSECURE_BOOTSTRAP_PASSWORD

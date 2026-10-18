@@ -7,6 +7,7 @@ from backend.app.api.v1.routes import (
     auth,
     business_public,
     corrections,
+    cron,
     dashboard,
     health,
     ingest,
@@ -24,6 +25,8 @@ router = APIRouter()
 # --- Public ---------------------------------------------------------------
 router.include_router(health.router, tags=["Health"])
 router.include_router(auth.router, prefix="/auth", tags=["Auth"])
+# Shared-secret auth of its own (no user is signed in when a schedule fires).
+router.include_router(cron.router, prefix="/cron", tags=["Scheduler"])
 
 # --- Authenticated (any active user) ------------------------------------
 _auth = [Depends(get_current_user)]

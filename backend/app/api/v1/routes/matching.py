@@ -10,11 +10,13 @@ from sqlalchemy.orm import Session
 from backend.app.api.deps import AdminUser
 from backend.app.db.session import get_db
 from backend.app.schemas import (
+    CalibrationSuggestion,
     MatchingCalibrationResponse,
     MatchingResultResponse,
     MatchingWeightsOut,
     MatchingWeightsUpdate,
 )
+from backend.app.services import calibration_ml
 from backend.app.services import matching_config_service as config_svc
 from backend.app.services.matching_engine import process_source_record
 
@@ -48,3 +50,16 @@ def update_weights(body: MatchingWeightsUpdate, admin: AdminUser, db: DbSession)
 @router.get("/calibration", response_model=MatchingCalibrationResponse)
 def calibration(db: DbSession):
     return config_svc.calibration_report(db)
+
+
+@router.get("/calibration/suggestion", response_model=CalibrationSuggestion)
+def calibration_suggestion(db: DbSession):
+    return calibration_ml.suggestion(db)
+
+
+@router.post("/calibration/apply", response_model=MatchingWeightsOut)
+def calibration_apply(admin: AdminUser, db: DbSession):
+    try:
+        return calibration_ml.apply_suggestion(db, admin.email)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))

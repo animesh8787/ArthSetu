@@ -22,6 +22,9 @@ class BusinessEntity(Base, UUIDPKMixin, TimestampMixin):
     normalized_address = mapped_column(String(500), index=True, nullable=True)
     pin_code = mapped_column(String(6), index=True, nullable=True)
 
+    email = mapped_column(String(255), nullable=True)
+    phone = mapped_column(String(20), nullable=True)
+
     district = mapped_column(String(100), index=True, nullable=True)
     sector = mapped_column(String(100), nullable=True)
 

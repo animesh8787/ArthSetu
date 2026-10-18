@@ -19,7 +19,7 @@ from backend.app.db.models.source_record import SourceRecord
 from backend.app.db.models.source_system import SourceSystem
 from backend.app.db.enums import ReviewCaseStatusEnum
 from backend.app.services.matching_engine import process_source_record
-from backend.app.services.scoring import normalize_pin, normalize_text
+from backend.app.services.scoring import normalize_phone, normalize_pin, normalize_text
 
 # Header aliases — a department's export rarely uses our field names.
 _ALIASES: dict[str, set[str]] = {
@@ -35,6 +35,8 @@ _ALIASES: dict[str, set[str]] = {
     "gstin": {"gstin", "gst", "gstno", "gstinno", "gstnumber"},
     "address": {"address", "addr", "registeredaddress", "premises", "location"},
     "pin": {"pin", "pincode", "postalcode", "zip", "zipcode"},
+    "email": {"email", "emailid", "mail", "contactemail"},
+    "phone": {"phone", "phoneno", "mobile", "mobileno", "contact", "contactno", "telephone", "tel"},
 }
 
 
@@ -100,10 +102,10 @@ class IngestionReport:
 
 
 CSV_TEMPLATE = (
-    "external_id,name,pan,gstin,address,pin\n"
+    "external_id,name,pan,gstin,address,pin,email,phone\n"
     "L-1001,Punjab Steel Works,ABCDE1234F,03ABCDE1234F1Z5,"
-    '"Plot 42, Focal Point Phase 3, Ludhiana",141001\n'
-    "L-1002,M/S Sharma Traders,,,\"Shop 7, Grain Market, Patiala\",147001\n"
+    '"Plot 42, Focal Point Phase 3, Ludhiana",141001,accounts@punjabsteel.example,9876543210\n'
+    'L-1002,M/S Sharma Traders,,,"Shop 7, Grain Market, Patiala",147001,,\n'
 )
 
 
@@ -112,31 +114,35 @@ CSV_TEMPLATE = (
 # ------------------------------------------------------------
 
 def parse_csv(raw: bytes) -> list[dict[str, str]]:
-    """Parse CSV bytes into a list of {external_id,name,pan,gstin,address,pin,_extra}."""
+    """Parse CSV bytes into a list of {external_id,name,pan,gstin,address,pin,...,_extra}."""
     text = raw.decode("utf-8-sig", errors="replace")
     reader = csv.DictReader(io.StringIO(text))
     if not reader.fieldnames:
         return []
+    return rows_from_dicts(reader.fieldnames, reader)
 
+
+def rows_from_dicts(fieldnames: Iterable[str], dict_rows: Iterable[dict]) -> list[dict[str, Any]]:
+    """Map a department's own column names onto ours (shared by CSV and JSON feeds)."""
     # map each real header to one of our canonical fields (or keep as extra)
     field_map: dict[str, str] = {}
-    for header in reader.fieldnames:
-        canon = _canon(header)
+    for header in fieldnames:
+        canon = _canon(str(header))
         for target, names in _ALIASES.items():
             if canon in names:
                 field_map[header] = target
                 break
 
-    rows: list[dict[str, str]] = []
-    for raw_row in reader:
+    rows: list[dict[str, Any]] = []
+    for raw_row in dict_rows:
         row: dict[str, Any] = {
             "external_id": "", "name": "", "pan": "",
-            "gstin": "", "address": "", "pin": "", "_extra": {},
+            "gstin": "", "address": "", "pin": "", "email": "", "phone": "", "_extra": {},
         }
         for header, value in raw_row.items():
             if header is None:
                 continue
-            value = (value or "").strip()
+            value = ("" if value is None else str(value)).strip()
             target = field_map.get(header)
             if target:
                 row[target] = value
@@ -209,6 +215,8 @@ def ingest_rows(
             extracted_gstin=(row.get("gstin") or "").strip().upper() or None,
             extracted_address=(row.get("address") or "").strip() or None,
             extracted_pin=pin,
+            extracted_email=(row.get("email") or "").strip().lower()[:255] or None,
+            extracted_phone=normalize_phone(row.get("phone")) or None,
         )
         db.add(sr)
         try:

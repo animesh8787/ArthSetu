@@ -275,6 +275,10 @@ class SourceSystemOut(BaseModel):
     name: str
     department: str
     record_count: int
+    pull_url: Optional[str] = None
+    pull_kind: Optional[str] = None
+    last_pull_at: Optional[datetime] = None
+    last_pull_status: Optional[str] = None
 
 
 class IngestRecord(BaseModel):
@@ -284,6 +288,8 @@ class IngestRecord(BaseModel):
     gstin: Optional[str] = None
     address: Optional[str] = None
     pin: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
 
 
 class IngestRequest(BaseModel):
@@ -376,7 +382,7 @@ class CorrectionListResponse(BaseModel):
 # ------------------------------------------------------------
 
 JobStatus = Literal["pending", "running", "succeeded", "failed"]
-JobType = Literal["status_run_all", "process_pending", "csv_match"]
+JobType = Literal["status_run_all", "process_pending", "csv_match", "sync_connectors"]
 
 
 class JobOut(BaseModel):
@@ -409,6 +415,7 @@ class MatchingWeightsOut(BaseModel):
     name_weight: float
     address_weight: float
     pin_weight: float
+    contact_weight: float
     pin_requires_name_sim: float
     auto_link_threshold: float
     review_threshold: float
@@ -422,6 +429,7 @@ class MatchingWeightsUpdate(BaseModel):
     name_weight: Optional[float] = Field(default=None, ge=0, le=1)
     address_weight: Optional[float] = Field(default=None, ge=0, le=1)
     pin_weight: Optional[float] = Field(default=None, ge=0, le=1)
+    contact_weight: Optional[float] = Field(default=None, ge=0, le=1)
     pin_requires_name_sim: Optional[float] = Field(default=None, ge=0, le=1)
     auto_link_threshold: Optional[float] = Field(default=None, ge=0, le=1)
     review_threshold: Optional[float] = Field(default=None, ge=0, le=1)
@@ -447,3 +455,54 @@ class MatchingCalibrationResponse(BaseModel):
     buckets: List[ConfidenceBucket]
     signals: List[SignalBreakdownRow]
     sample_size: int
+
+
+# ---------- Connectors, activity events, learned calibration ----------
+
+class ConnectorUpdate(BaseModel):
+    pull_url: Optional[str] = Field(default=None, max_length=1000)
+    pull_kind: Literal["records", "events"] = "records"
+
+
+class EventRecord(BaseModel):
+    ubid: Optional[str] = None
+    gstin: Optional[str] = None
+    pan: Optional[str] = None
+    external_id: Optional[str] = None
+    event_type: str
+    occurred_at: str
+
+
+class EventsIngestRequest(BaseModel):
+    source_system_code: Optional[str] = None
+    events: List[EventRecord] = Field(max_length=5000)
+
+
+class EventsReportOut(BaseModel):
+    rows_read: int
+    created: int
+    skipped_duplicates: int
+    unresolved: int
+    errors: List[RowError]
+    recomputed: int
+
+
+class LearnedSignal(BaseModel):
+    field: str
+    label: str
+    coefficient: float
+    approved_avg: float
+    rejected_avg: float
+    current_weight: float
+    suggested_weight: float
+    learned: bool
+
+
+class CalibrationSuggestion(BaseModel):
+    ready: bool
+    message: Optional[str] = None
+    decided: int
+    approved: int
+    rejected: int
+    accuracy: Optional[float] = None
+    signals: List[LearnedSignal]

@@ -237,7 +237,7 @@ export interface ProcessPendingResult {
 
 // --- Background jobs ----------------------------------------------------
 
-export type JobType = "status_run_all" | "process_pending" | "csv_match";
+export type JobType = "status_run_all" | "process_pending" | "csv_match" | "sync_connectors";
 export type JobStatus = "pending" | "running" | "succeeded" | "failed";
 
 export interface Job {

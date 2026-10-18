@@ -20,6 +20,7 @@ class MatchingConfig(Base, UUIDPKMixin, TimestampMixin):
     name_weight = mapped_column(Float, default=0.42, nullable=False)
     address_weight = mapped_column(Float, default=0.28, nullable=False)
     pin_weight = mapped_column(Float, default=0.12, nullable=False)
+    contact_weight = mapped_column(Float, default=0.06, server_default="0.06", nullable=False)
     pin_requires_name_sim = mapped_column(Float, default=0.35, nullable=False)
     auto_link_threshold = mapped_column(Float, default=0.92, nullable=False)
     review_threshold = mapped_column(Float, default=0.70, nullable=False)

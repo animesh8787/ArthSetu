@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 from backend.app.services.scoring import (
     address_similarity,
     normalize_address,
+    normalize_email,
+    normalize_phone,
     normalize_text,
     normalize_pin,
     pin_matches,
@@ -359,6 +361,17 @@ def _score_candidate(
         else:
             reasons.append("PIN code match (ignored — names unrelated)")
 
+    # --- Contact details (a shared agency number only counts alongside a related name) ---
+    if name_score >= weights.pin_requires_name_sim:
+        phone = normalize_phone(source_record.extracted_phone)
+        email = normalize_email(source_record.extracted_email)
+        if phone and phone == normalize_phone(entity.phone):
+            score += weights.contact_weight
+            reasons.append("Contact match (phone)")
+        elif email and email == normalize_email(entity.email):
+            score += weights.contact_weight
+            reasons.append("Contact match (email)")
+
     score = min(round(score, 4), 1.0)
     return score, reasons
 
@@ -374,6 +387,7 @@ def _auto_link(
     reasons: List[str],
 ) -> MatchResult:
 
+    _fill_contact(entity, source_record)
     link = EntityRecordLink(
         source_record_id=source_record.id,
         business_entity_id=entity.id,
@@ -404,6 +418,12 @@ def _auto_link(
         business_entity_id=entity.id,
         reasons=reasons,
     )
+
+
+def _fill_contact(entity: BusinessEntity, source_record: SourceRecord) -> None:
+    """A confirmed link may teach the business a phone/email it did not have."""
+    entity.phone = entity.phone or normalize_phone(source_record.extracted_phone) or None
+    entity.email = entity.email or normalize_email(source_record.extracted_email) or None
 
 
 def _create_review_case(
@@ -480,6 +500,8 @@ def _create_new_entity(
         address=source_record.extracted_address,
         normalized_address=normalize_address(source_record.extracted_address),
         pin_code=normalize_pin(source_record.extracted_pin) or None,
+        email=normalize_email(source_record.extracted_email) or None,
+        phone=normalize_phone(source_record.extracted_phone) or None,
         status=EntityStatusEnum.UNKNOWN,
     )
 

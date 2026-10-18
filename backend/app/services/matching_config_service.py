@@ -20,6 +20,7 @@ UPDATABLE_FIELDS = (
     "name_weight",
     "address_weight",
     "pin_weight",
+    "contact_weight",
     "pin_requires_name_sim",
     "auto_link_threshold",
     "review_threshold",
@@ -33,6 +34,7 @@ class MatchingWeights:
     name_weight: float
     address_weight: float
     pin_weight: float
+    contact_weight: float
     pin_requires_name_sim: float
     auto_link_threshold: float
     review_threshold: float

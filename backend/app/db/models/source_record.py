@@ -17,6 +17,8 @@ class SourceRecord(Base, UUIDPKMixin, TimestampMixin):
     extracted_gstin = mapped_column(String(20), index=True)
     extracted_address = mapped_column(String(500), nullable=True)
     extracted_pin = mapped_column(String(6), index=True, nullable=True)
+    extracted_email = mapped_column(String(255), nullable=True)
+    extracted_phone = mapped_column(String(20), nullable=True)
 
     source_system = relationship("SourceSystem", back_populates="records")
     links = relationship("EntityRecordLink", back_populates="source_record")

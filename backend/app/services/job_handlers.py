@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.db.enums import JobTypeEnum
 from backend.app.db.models.business_entity import BusinessEntity
-from backend.app.services import ingestion, job_runner
+from backend.app.services import connectors, ingestion, job_runner
 from backend.app.services.status_engine import infer_business_status
 
 
@@ -67,3 +67,18 @@ def _csv_match(db: Session, payload: dict) -> Dict[str, Any]:
         "new_entity": tally.new_entity,
         "failed": tally.failed,
     }
+
+
+@job_runner.register(JobTypeEnum.SYNC_CONNECTORS)
+def _sync_connectors(db: Session, payload: dict) -> Dict[str, Any]:
+    """Pull connector exports; with ``full_cycle`` also match new records and refresh statuses."""
+    summaries = connectors.sync_all(db, payload.get("code"))
+    result: Dict[str, Any] = {
+        "synced": len(summaries),
+        "ok": sum(1 for s in summaries if s.get("ok")),
+        "systems": summaries,
+    }
+    if payload.get("full_cycle"):
+        result["matching"] = ingestion.process_pending(db, limit=5000)
+        result["status"] = _status_run_all(db, {})
+    return result
