@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowDown, ArrowUp } from "lucide-react";
+import { ArrowDown, ArrowUp } from "@/components/icons";
 import { analyticsApi } from "@/api/endpoints";
 import type { ApiError } from "@/lib/api";
 import { STATUS_COLOR } from "@/lib/chart";
@@ -192,7 +192,7 @@ export function DistrictAnalyticsPage() {
                         className="inline-flex items-center gap-1.5 hover:text-brand hover:underline"
                       >
                         <span
-                          className="h-1.5 w-1.5 rounded-full"
+                          className="h-1.5 w-1.5 rounded-sm"
                           style={{ background: STATUS_COLOR[k] }}
                           aria-hidden
                         />

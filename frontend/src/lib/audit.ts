@@ -1,21 +1,7 @@
-import {
-  ArrowLeftRight,
-  CheckCircle2,
-  CircleSlash,
-  FileEdit,
-  GitMerge,
-  Pin,
-  PlusCircle,
-  RefreshCw,
-  Scissors,
-  Undo2,
-  type LucideIcon,
-} from "lucide-react";
 import type { AuditEntry } from "@/types/api";
 import { titleCase } from "./format";
 
 interface AuditView {
-  icon: LucideIcon;
   tone: "ok" | "warn" | "danger" | "brand" | "neutral";
   title: string;
   detail?: string;
@@ -38,7 +24,6 @@ export function describeAudit(entry: AuditEntry): AuditView {
       const status = stateStr(after, "status");
       const conf = stateStr(after, "confidence");
       return {
-        icon: RefreshCw,
         tone: "brand",
         title: status ? `Status set to ${titleCase(status)}` : "Status recomputed",
         detail: conf ? `confidence ${Number(conf).toFixed(2)}` : undefined,
@@ -46,25 +31,22 @@ export function describeAudit(entry: AuditEntry): AuditView {
     }
     case "REVIEW_APPROVED":
       return {
-        icon: CheckCircle2,
         tone: "ok",
         title: "Review approved",
         detail: stateStr(after, "link_id") ? "link confirmed" : undefined,
       };
     case "REVIEW_REJECTED":
       return {
-        icon: CircleSlash,
         tone: "danger",
         title: "Review rejected",
         detail: stateStr(after, "new_entity_id") ? "record given its own business identity" : undefined,
       };
     case "REVIEW_CREATED":
-      return { icon: ArrowLeftRight, tone: "warn", title: "Sent to review queue" };
+      return { tone: "warn", title: "Sent to review queue" };
     case "AUTO_LINK": {
       const conf = stateStr(after, "confidence");
       const decision = stateStr(after, "decision");
       return {
-        icon: GitMerge,
         tone: "neutral",
         title: decision ? `Link ${titleCase(decision)}` : "Record auto-linked",
         detail: conf ? `confidence ${Number(conf).toFixed(2)}` : undefined,
@@ -72,32 +54,29 @@ export function describeAudit(entry: AuditEntry): AuditView {
     }
     case "NEW_ENTITY_CREATED":
       return {
-        icon: PlusCircle,
         tone: "brand",
         title: "New business identity created",
         detail: stateStr(after, "ubid_code"),
       };
     case "LINK_SPLIT":
       return {
-        icon: Scissors,
         tone: "warn",
         title: "Record split from this business",
         detail: stateStr(after, "reason"),
       };
     case "STATUS_OVERRIDDEN":
       return {
-        icon: Pin,
         tone: "warn",
         title: `Status pinned to ${titleCase(stateStr(after, "status") ?? "a value")}`,
         detail: stateStr(after, "reason"),
       };
     case "STATUS_OVERRIDE_CLEARED":
-      return { icon: RefreshCw, tone: "brand", title: "Status pin cleared" };
+      return { tone: "brand", title: "Status pin cleared" };
     case "EVENT_REASSIGNED":
-      return { icon: ArrowLeftRight, tone: "warn", title: "Activity event reassigned", detail: stateStr(after, "reason") };
+      return { tone: "warn", title: "Activity event reassigned", detail: stateStr(after, "reason") };
     case "CORRECTION_UNDONE":
-      return { icon: Undo2, tone: "neutral", title: "Correction undone", detail: stateStr(after, "note") };
+      return { tone: "neutral", title: "Correction undone", detail: stateStr(after, "note") };
     default:
-      return { icon: FileEdit, tone: "neutral", title: titleCase(action || "Event") };
+      return { tone: "neutral", title: titleCase(action || "Event") };
   }
 }

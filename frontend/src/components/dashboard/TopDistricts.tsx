@@ -23,7 +23,7 @@ export function TopDistricts({ rows }: { rows: DistrictRow[] }) {
                 {formatNumber(d.total)}
               </span>
             </div>
-            <div className="mt-1 flex h-1.5 w-full gap-px overflow-hidden rounded-full bg-surface-muted">
+            <div className="mt-1 flex h-1.5 w-full gap-px overflow-hidden rounded-sm bg-surface-muted">
               {(["active", "dormant", "closed", "unknown"] as const).map((k) =>
                 d[k] > 0 ? (
                   <span

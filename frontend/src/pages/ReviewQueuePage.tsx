@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { keepPreviousData, useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowRight, Check, Lock, X } from "lucide-react";
+import { ArrowRight, Check, X } from "@/components/icons";
 import { reviewApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
@@ -73,8 +73,8 @@ export function ReviewQueuePage() {
       notify(
         "success",
         action === "approve"
-          ? "Review approved — link confirmed"
-          : "Review rejected — record kept separate",
+          ? "Review approved: link confirmed"
+          : "Review rejected: record given its own identity",
       );
       queryClient.invalidateQueries({ queryKey: ["reviews"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard"] });
@@ -98,8 +98,7 @@ export function ReviewQueuePage() {
         actions={
           !canReview ? (
             <span className="flex items-center gap-1.5 rounded-md bg-surface-muted px-2.5 py-1 text-[12px] text-ink-muted">
-              <Lock className="h-3.5 w-3.5" />
-              Read-only — reviewer role required to act
+              Read-only: reviewer role required to act
             </span>
           ) : undefined
         }
@@ -151,7 +150,6 @@ export function ReviewQueuePage() {
       ) : !data || data.items.length === 0 ? (
         <Card>
           <EmptyState
-            icon={<Check className="h-6 w-6 text-ok" />}
             title={tab === "open" ? "Queue is clear" : "Nothing here"}
             description={
               tab === "open"
@@ -234,7 +232,7 @@ function ReviewCard({
               Source record
             </div>
             <div className="mt-0.5 text-sm font-medium text-ink">
-              {c.extracted_name || "—"}
+              {c.extracted_name || "–"}
             </div>
             <div className="text-[12px] text-ink-muted">
               {c.source_system || "Unknown system"}
@@ -256,11 +254,11 @@ function ReviewCard({
                   {c.candidate_name || c.candidate_ubid}
                 </Link>
               ) : (
-                c.candidate_name || "—"
+                c.candidate_name || "–"
               )}
             </div>
             <div className="font-mono text-[12px] text-ink-muted">
-              {c.candidate_ubid || "—"}
+              {c.candidate_ubid || "–"}
             </div>
           </div>
         </div>
@@ -269,7 +267,7 @@ function ReviewCard({
           <ul className="flex flex-wrap gap-x-4 gap-y-1 text-[12px] text-ink-muted">
             {reasons.map((r, i) => (
               <li key={i} className="flex items-center gap-1.5">
-                <span className="h-1 w-1 rounded-full bg-ink-subtle" aria-hidden />
+                <span className="h-1 w-1 rounded-sm bg-ink-subtle" aria-hidden />
                 {r}
               </li>
             ))}

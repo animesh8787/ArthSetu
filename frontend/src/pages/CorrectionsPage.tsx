@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Undo2, History } from "lucide-react";
 import { correctionsApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
@@ -36,7 +35,7 @@ export function CorrectionsPage() {
     <div>
       <PageHeader
         title="Corrections"
-        description="Reviewer edits to the identity graph — each one reversible."
+        description="Reviewer edits to the identity graph; each one is reversible."
       />
 
       <Card>
@@ -48,7 +47,6 @@ export function CorrectionsPage() {
           <ErrorState onRetry={() => refetch()} />
         ) : !data || data.items.length === 0 ? (
           <EmptyState
-            icon={<History className="h-6 w-6" />}
             title="No corrections yet"
             description="Splits, status overrides and event reassignments show up here."
           />
@@ -80,7 +78,6 @@ export function CorrectionsPage() {
                     loading={undo.isPending && undo.variables === c.audit_id}
                     onClick={() => undo.mutate(c.audit_id)}
                   >
-                    <Undo2 className="h-3.5 w-3.5" />
                     Undo
                   </Button>
                 )}

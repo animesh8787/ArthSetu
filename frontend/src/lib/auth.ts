@@ -14,8 +14,8 @@ const FIREBASE_ERROR_MESSAGES: Record<string, string> = {
   "auth/user-not-found": "Incorrect email or password.",
   "auth/wrong-password": "Incorrect email or password.",
   "auth/invalid-credential": "Incorrect email or password.",
-  "auth/too-many-requests": "Too many attempts — try again in a few minutes.",
-  "auth/network-request-failed": "Network error — check your connection and try again.",
+  "auth/too-many-requests": "Too many attempts. Try again in a few minutes.",
+  "auth/network-request-failed": "Network error. Check your connection and try again.",
 };
 
 // Login/reset-password can fail with either a Firebase SDK error (sign-in

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, Link2, RefreshCw, Upload } from "lucide-react";
+import { Download, Refresh, Upload } from "@/components/icons";
 import { ingestApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
@@ -103,7 +103,7 @@ function ConnectorRow({ system, onChanged }: { system: SourceSystem; onChanged: 
           Remove
         </Button>
         <Button size="sm" loading={running} disabled={!system.pull_url || dirty} onClick={() => sync.mutate()}>
-          <RefreshCw className="h-3.5 w-3.5" />
+          <Refresh className="h-3.5 w-3.5" />
           Sync now
         </Button>
       </div>
@@ -267,7 +267,7 @@ export function IngestionPage() {
             disabled={!pending.data || pendingRunning}
             onClick={() => processPending.mutate()}
           >
-            <RefreshCw className="h-3.5 w-3.5" />
+            <Refresh className="h-3.5 w-3.5" />
             {pendingRunning ? "Matching…" : "Run matching on pending"}
           </Button>
         </CardBody>
@@ -324,7 +324,7 @@ export function IngestionPage() {
               type="checkbox"
               checked={runMatching}
               onChange={(e) => setRunMatching(e.target.checked)}
-              className="h-3.5 w-3.5 rounded border-line text-brand focus:ring-brand"
+              className="h-3.5 w-3.5 rounded border-line text-brand"
             />
             Resolve imported records through the matching engine now
           </label>
@@ -359,7 +359,7 @@ export function IngestionPage() {
                 </div>
               ) : report.job_id && matchRunning ? (
                 <div className="mt-2 flex items-center gap-1.5 text-[12px] text-ink-muted">
-                  <RefreshCw className="h-3 w-3 animate-spin" />
+                  <Refresh className="h-3 w-3 animate-spin" />
                   Matching in progress…
                 </div>
               ) : null}
@@ -441,7 +441,6 @@ export function IngestionPage() {
           <CardHeader
             title="Scheduled connectors"
             description="Read-only pulls: point a system at the CSV or JSON export it already publishes. The scheduler (or Sync now) fetches it, matches new records and refreshes statuses. Nothing is ever written back to the department."
-            action={<Link2 className="h-4 w-4 text-ink-subtle" />}
           />
           {(systems.data ?? []).map((s) => (
             <ConnectorRow

@@ -1,5 +1,5 @@
 import { useEffect, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { X } from "@/components/icons";
 
 export function Dialog({
   open,
@@ -36,7 +36,7 @@ export function Dialog({
         aria-modal="true"
         aria-label={title}
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-lg border border-line bg-surface shadow-pop"
+        className="w-full max-w-md rounded-md border border-ink-subtle bg-surface"
       >
         <div className="flex items-start justify-between gap-4 border-b border-line px-4 py-3">
           <div>

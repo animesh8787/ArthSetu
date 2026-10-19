@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Refresh } from "@/components/icons";
 import { analyticsApi, dashboardApi, statusApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
@@ -90,7 +90,7 @@ export function DashboardPage() {
               disabled={recomputeRunning}
               onClick={() => recompute.mutate()}
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <Refresh className="h-3.5 w-3.5" />
               Recompute statuses
             </Button>
           ) : undefined
@@ -178,7 +178,7 @@ export function DashboardPage() {
             <Card className="lg:col-span-2">
               <CardHeader
                 title="Recent operations"
-                description="Live audit trail — every automated and reviewer action"
+                description="Live audit trail: every automated and reviewer action"
               />
               <CardBody>
                 <AuditFeed limit={9} />

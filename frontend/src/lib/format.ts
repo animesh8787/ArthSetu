@@ -29,7 +29,7 @@ export function decisionMeta(decision: string | null | undefined): {
     case "rejected":
       return { label: "Rejected", tone: "danger" };
     default:
-      return { label: decision ? titleCase(decision) : "—", tone: "neutral" };
+      return { label: decision ? titleCase(decision) : "–", tone: "neutral" };
   }
 }
 
@@ -61,18 +61,18 @@ export function parseApiDate(input: string | null | undefined): Date | null {
 
 const numberFmt = new Intl.NumberFormat("en-IN");
 export function formatNumber(value: number | null | undefined) {
-  if (value == null || Number.isNaN(value)) return "—";
+  if (value == null || Number.isNaN(value)) return "–";
   return numberFmt.format(value);
 }
 
 export function formatPercent(value: number | null | undefined, digits = 1) {
-  if (value == null || Number.isNaN(value)) return "—";
+  if (value == null || Number.isNaN(value)) return "–";
   return `${value.toFixed(digits)}%`;
 }
 
 export function formatDate(input: string | null | undefined) {
   const d = parseApiDate(input);
-  if (!d) return "—";
+  if (!d) return "–";
   return d.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -82,7 +82,7 @@ export function formatDate(input: string | null | undefined) {
 
 export function formatDateTime(input: string | null | undefined) {
   const d = parseApiDate(input);
-  if (!d) return "—";
+  if (!d) return "–";
   return d.toLocaleString("en-IN", {
     day: "2-digit",
     month: "short",
@@ -94,7 +94,7 @@ export function formatDateTime(input: string | null | undefined) {
 
 export function relativeTime(input: string | null | undefined) {
   const parsed = parseApiDate(input);
-  if (!parsed) return "—";
+  if (!parsed) return "–";
   const d = parsed.getTime();
   const diff = d - Date.now();
   const abs = Math.abs(diff);

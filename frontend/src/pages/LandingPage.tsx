@@ -1,57 +1,70 @@
 import { Navigate, Link } from "react-router-dom";
-import {
-  ArrowRight,
-  Fingerprint,
-  GitBranch,
-  Network,
-  ShieldCheck,
-  SlidersHorizontal,
-  Users,
-  Zap,
-} from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { Button } from "@/components/ui/Button";
+import { LegalFooter } from "@/pages/LegalPages";
 
-const PILLARS = [
+interface Feature {
+  id: string;
+  title: string;
+  body: string[];
+  image: string;
+  alt: string;
+  caption: string;
+}
+
+const FEATURES: Feature[] = [
   {
-    icon: Fingerprint,
-    title: "Explainable matching",
-    body: "GSTIN, PAN, name, address, PIN and phone / email are weighted and scored against every candidate. Every decision — auto-link, send to review, or start a new identity — comes with the exact reasons behind it. No black box.",
+    id: "review",
+    title: "Every match comes with its evidence",
+    body: [
+      "GSTIN, PAN, name, address, PIN code and phone or email are weighted and scored against each candidate business. The score and the reasons behind it are stored with the decision.",
+      "Records the engine is unsure about go to a review queue. A reviewer approves or rejects with one click, and the console records who decided and when. A rejected record gets its own business identity instead of staying in limbo.",
+    ],
+    image: "/screens/review.webp",
+    alt: "The review queue listing uncertain matches with confidence scores and the evidence for each",
+    caption: "Review queue on the demo dataset.",
   },
   {
-    icon: Users,
-    title: "Human-in-the-loop review",
-    body: "Matches the engine isn't confident about land in a review queue with the full evidence trail attached. A reviewer approves or rejects with one click, and it's on the record who decided what, when.",
+    id: "profile",
+    title: "One page per business",
+    body: [
+      "A business profile lists every departmental record linked to it, the matching evidence, a timeline of filings, renewals and inspections, and the status the engine inferred with its confidence and reasons.",
+      "A wrong merge can be split back out, a status can be pinned by a reviewer, and every correction can be undone from the history.",
+    ],
+    image: "/screens/profile.webp",
+    alt: "A business profile with linked records, activity timeline, status reasoning and audit trail",
+    caption: "Business profile on the demo dataset.",
   },
   {
-    icon: GitBranch,
-    title: "Nothing is one-way",
-    body: "Wrongly merged a record? Split it back out. Pinned a status that turned out wrong? Clear the override. Reassigned an event to the wrong business? Undo it. Every correction is reversible from a history view.",
+    id: "feeds",
+    title: "Takes the exports departments already have",
+    body: [
+      "Upload a CSV of records or of activity events, or point a source system at a CSV or JSON export it publishes and let the scheduled sync pull it. Column names are matched loosely, so each department keeps its own format.",
+      "ArthSetu only reads. It never writes back to a department system, and a connector can reach public https addresses only.",
+    ],
+    image: "/screens/ingest.webp",
+    alt: "The ingestion page with CSV import, activity event import and connector settings",
+    caption: "Data ingestion page.",
   },
   {
-    icon: Zap,
-    title: "Real activity, not a guess",
-    body: "A business's lifecycle status — active, dormant, closed — is inferred from the operational signals departments send in - power usage, filings, inspections, renewals - by file import or scheduled pull. Each inference ships with its own confidence score and reasoning.",
+    id: "tuning",
+    title: "Weights that follow what reviewers decide",
+    body: [
+      "The matching weights and thresholds are editable by an administrator. A calibration view shows how confidence lines up with approvals and rejections.",
+      "A small logistic regression over the decided cases suggests new weights and shows the numbers behind each suggestion. It never scores a record itself, and nothing changes until an administrator applies it.",
+    ],
+    image: "/screens/tuning.webp",
+    alt: "Matching tuning page with editable weights and a table of learned weight suggestions",
+    caption: "Matching tuning page. The demo reviews are synthetic, so the suggested weights are illustrative.",
   },
 ];
 
-const FOUNDATIONS = [
-  {
-    icon: ShieldCheck,
-    title: "Role-based access",
-    body: "Viewer, reviewer, admin — each capability gated to the role that should hold it, enforced on every endpoint.",
-  },
-  {
-    icon: SlidersHorizontal,
-    title: "Calibrated from feedback",
-    body: "Matching weights aren't fixed constants. They're tunable, a calibration view shows how well thresholds line up with what reviewers decide, and a learned suggestion - never applied without an admin - proposes new weights from those decisions.",
-  },
-  {
-    icon: Network,
-    title: "No source-system changes",
-    body: "Departments keep their own registries exactly as they are. ArthSetu takes their CSV or JSON exports - uploaded, or pulled read-only on a schedule - and resolves them. It never writes back and doesn't ask anyone to migrate anything.",
-  },
+const STEPS = [
+  "A department file or connector delivers business records.",
+  "Each record is normalised and scored against candidate businesses.",
+  "High scores link automatically, middle scores wait for a reviewer, low scores open a new identity.",
+  "Activity events from the departments decide whether each business reads as active, dormant or closed.",
 ];
 
 export function LandingPage() {
@@ -62,17 +75,9 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      {/* Nav */}
-      <header className="sticky top-0 z-20 border-b border-line/70 bg-canvas/80 backdrop-blur-md">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-brand text-white">
-              <Network className="h-4.5 w-4.5" />
-            </div>
-            <span className="text-[15px] font-semibold tracking-tight text-ink">
-              ArthSetu
-            </span>
-          </div>
+      <header className="sticky top-0 z-20 border-b border-line bg-canvas">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
+          <span className="text-[15px] font-semibold tracking-tight text-ink">ArthSetu</span>
           <Link to="/login">
             <Button variant="secondary" size="sm">
               Sign in
@@ -81,142 +86,88 @@ export function LandingPage() {
         </div>
       </header>
 
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-x-0 -top-32 h-[560px] bg-[radial-gradient(ellipse_at_top,_rgb(var(--c-brand)/0.14),_transparent_65%)]"
-        />
-        <div className="relative mx-auto max-w-4xl px-6 pb-24 pt-20 text-center sm:pt-28">
-          <div className="mb-6 inline-flex items-center gap-1.5 rounded-full border border-line bg-surface px-3 py-1 text-[12px] font-medium text-ink-muted shadow-sm">
-            <span className="h-1.5 w-1.5 rounded-full bg-ok" />
-            Business Identity &amp; Activity Intelligence
-          </div>
-          <h1 className="text-balance text-5xl font-extrabold tracking-tight text-ink sm:text-6xl">
-            One business.
-            <br />
-            One identity. One truth.
+      <main>
+        <section className="mx-auto max-w-6xl px-6 pb-10 pt-16 sm:pt-20">
+          <h1 className="max-w-3xl text-4xl font-semibold leading-[1.1] tracking-tight text-ink sm:text-5xl">
+            One business, one identity, across every department.
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-balance text-[17px] leading-relaxed text-ink-muted">
-            Every government department that touches a business — labour,
-            municipal, pollution control, electricity — keeps its own record
-            of it, under its own spelling, in its own silo. ArthSetu resolves
-            those fragments into one canonical identity, explains exactly why
-            it believes two records are the same business, and keeps a human
-            in the loop for everything it isn't sure about.
+          <p className="mt-5 max-w-2xl text-[16px] leading-relaxed text-ink-muted">
+            Labour, municipal, pollution control and electricity each keep their own record of the same business, under
+            slightly different names. ArthSetu resolves those records into a single identity, shows exactly why it
+            believes they match, and leaves the uncertain cases to a person.
           </p>
-          <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
+          <div className="mt-8 flex flex-wrap gap-3">
             <Link to="/login">
-              <Button size="lg">
-                Sign in to the console
-                <ArrowRight className="h-4 w-4" />
-              </Button>
+              <Button size="lg">Sign in to the console</Button>
             </Link>
-            <a href="#how-it-works">
+            <a href="#review">
               <Button variant="secondary" size="lg">
-                See how it works
+                See the console
               </Button>
             </a>
           </div>
-        </div>
-      </section>
+          <figure className="mt-12">
+            <img
+              src="/screens/dashboard.webp"
+              alt="The ArthSetu dashboard with business counts, activity trend and status breakdown"
+              width={1440}
+              height={900}
+              className="w-full rounded-md border border-line"
+            />
+            <figcaption className="mt-2 text-[12px] text-ink-subtle">
+              Dashboard on the demo dataset. All data in these screenshots is synthetic.
+            </figcaption>
+          </figure>
+        </section>
 
-      {/* The problem */}
-      <section className="border-t border-line bg-surface">
-        <div className="mx-auto max-w-4xl px-6 py-20 text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-            The same business, four different ghosts
-          </h2>
-          <p className="mx-auto mt-5 max-w-2xl text-balance text-[16px] leading-relaxed text-ink-muted">
-            "Sharma Traders", "M/S Sharma Traders" and "SHARMA TRADERS" might
-            be one shop — or three. Without a way to tell, every department
-            sees a partial, disconnected picture of the same business, and
-            nobody can answer a simple question: is this business still
-            active? ArthSetu exists to answer that question, with evidence.
-          </p>
-        </div>
-      </section>
-
-      {/* How it works */}
-      <section id="how-it-works" className="mx-auto max-w-6xl px-6 py-24">
-        <div className="mx-auto mb-14 max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-            How it works
-          </h2>
-          <p className="mt-4 text-[16px] leading-relaxed text-ink-muted">
-            Four principles the whole platform is built around.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2">
-          {PILLARS.map((p) => (
-            <div
-              key={p.title}
-              className="rounded-xl border border-line bg-surface p-7 shadow-card transition-shadow hover:shadow-pop"
-            >
-              <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg bg-brand-soft text-brand">
-                <p.icon className="h-5 w-5" />
-              </div>
-              <h3 className="text-lg font-semibold text-ink">{p.title}</h3>
-              <p className="mt-2 text-[14.5px] leading-relaxed text-ink-muted">
-                {p.body}
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* Built for government */}
-      <section className="border-t border-line bg-surface">
-        <div className="mx-auto max-w-6xl px-6 py-24">
-          <div className="mx-auto mb-14 max-w-2xl text-center">
-            <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-              Built to be trusted with the record
-            </h2>
-            <p className="mt-4 text-[16px] leading-relaxed text-ink-muted">
-              A platform government departments can actually rely on has to
-              earn it structurally, not just promise it.
-            </p>
-          </div>
-          <div className="grid grid-cols-1 gap-10 sm:grid-cols-3">
-            {FOUNDATIONS.map((f) => (
-              <div key={f.title} className="text-center sm:text-left">
-                <div className="mx-auto mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-soft text-brand sm:mx-0">
-                  <f.icon className="h-5 w-5" />
+        {FEATURES.map((f, i) => (
+          <section key={f.id} id={f.id} className="border-t border-line">
+            <div className="mx-auto grid max-w-6xl gap-10 px-6 py-16 lg:grid-cols-5 lg:items-center">
+              <div className={i % 2 === 1 ? "lg:order-2 lg:col-span-2" : "lg:col-span-2"}>
+                <h2 className="text-2xl font-semibold tracking-tight text-ink">{f.title}</h2>
+                <div className="mt-4 space-y-3 text-[15px] leading-relaxed text-ink-muted">
+                  {f.body.map((p) => (
+                    <p key={p}>{p}</p>
+                  ))}
                 </div>
-                <h3 className="text-base font-semibold text-ink">
-                  {f.title}
-                </h3>
-                <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
-                  {f.body}
-                </p>
               </div>
-            ))}
+              <figure className={i % 2 === 1 ? "lg:col-span-3" : "lg:col-span-3"}>
+                <img
+                  src={f.image}
+                  alt={f.alt}
+                  width={1440}
+                  height={900}
+                  loading="lazy"
+                  className="w-full rounded-md border border-line"
+                />
+                <figcaption className="mt-2 text-[12px] text-ink-subtle">{f.caption}</figcaption>
+              </figure>
+            </div>
+          </section>
+        ))}
+
+        <section className="border-t border-line">
+          <div className="mx-auto max-w-6xl px-6 py-16">
+            <h2 className="text-2xl font-semibold tracking-tight text-ink">How a record becomes an identity</h2>
+            <ol className="mt-6 max-w-2xl list-decimal space-y-3 pl-5 text-[15px] leading-relaxed text-ink-muted">
+              {STEPS.map((s) => (
+                <li key={s}>{s}</li>
+              ))}
+            </ol>
+            <p className="mt-8 max-w-2xl text-[15px] leading-relaxed text-ink-muted">
+              Access is by role: viewers read, reviewers decide and correct, administrators import data and tune the
+              engine. Accounts are created by an administrator.
+            </p>
+            <div className="mt-8">
+              <Link to="/login">
+                <Button size="lg">Sign in to the console</Button>
+              </Link>
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      {/* Final CTA */}
-      <section className="mx-auto max-w-4xl px-6 py-24 text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-ink sm:text-4xl">
-          See it resolve a real record
-        </h2>
-        <p className="mx-auto mt-4 max-w-xl text-[16px] leading-relaxed text-ink-muted">
-          Sign in to the console to walk through the dashboard, the review
-          queue, and an explained match end to end.
-        </p>
-        <div className="mt-8">
-          <Link to="/login">
-            <Button size="lg">
-              Sign in
-              <ArrowRight className="h-4 w-4" />
-            </Button>
-          </Link>
-        </div>
-      </section>
-
-      <footer className="border-t border-line px-6 py-8 text-center text-[12px] text-ink-subtle">
-        ArthSetu — Unified Business Identity &amp; Activity Intelligence
-      </footer>
+      <LegalFooter />
     </div>
   );
 }

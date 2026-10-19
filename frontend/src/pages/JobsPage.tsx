@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw } from "lucide-react";
+import { Refresh } from "@/components/icons";
 import { jobsApi } from "@/api/endpoints";
 import { formatDateTime, titleCase } from "@/lib/format";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -71,10 +71,10 @@ export function JobsPage() {
     <div className="space-y-3">
       <PageHeader
         title="Background Jobs"
-        description="Batch status recompute and bulk matching run off the request thread — track them here."
+        description="Batch status recompute and bulk matching run off the request thread. Track them here."
         actions={
           <Button variant="ghost" size="sm" loading={isFetching} onClick={() => refetch()}>
-            <RefreshCw className="h-3.5 w-3.5" />
+            <Refresh className="h-3.5 w-3.5" />
             Refresh
           </Button>
         }
@@ -126,10 +126,10 @@ export function JobsPage() {
                     {job.status === "failed" ? (
                       <span className="text-danger">{job.error}</span>
                     ) : (
-                      resultSummary(job) ?? "—"
+                      resultSummary(job) ?? "–"
                     )}
                   </Td>
-                  <Td className="text-[12px] text-ink-muted">{job.created_by ?? "—"}</Td>
+                  <Td className="text-[12px] text-ink-muted">{job.created_by ?? "–"}</Td>
                   <Td className="text-[12px] text-ink-muted">{formatDateTime(job.created_at)}</Td>
                 </Tr>
               ))}

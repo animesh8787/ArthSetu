@@ -27,13 +27,13 @@ function TrendTooltip({
   if (!active || !payload?.length) return null;
   const row = payload[0].payload;
   return (
-    <div className="rounded-md border border-line bg-surface px-3 py-2 shadow-pop">
+    <div className="rounded-md border border-ink-subtle bg-surface px-3 py-2">
       <div className="text-sm font-semibold tabular-nums text-ink">
         {formatNumber(row.events)}
         <span className="ml-1 font-normal text-ink-muted">events</span>
       </div>
       <div className="mt-0.5 flex items-center gap-1.5 text-[12px] text-ink-muted">
-        <span className="h-0.5 w-3 rounded-full bg-brand" aria-hidden />
+        <span className="h-0.5 w-3 rounded-sm bg-brand" aria-hidden />
         {row.label}
       </div>
     </div>
@@ -59,12 +59,6 @@ export default function ActivityTrendChart({
     <div className="h-56 w-full">
       <ResponsiveContainer>
         <AreaChart data={rows} margin={{ top: 6, right: 8, bottom: 0, left: 0 }}>
-          <defs>
-            <linearGradient id="trendFill" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={CHART.series} stopOpacity={0.16} />
-              <stop offset="100%" stopColor={CHART.series} stopOpacity={0.02} />
-            </linearGradient>
-          </defs>
           <CartesianGrid
             stroke={CHART.grid}
             strokeWidth={1}
@@ -95,7 +89,7 @@ export default function ActivityTrendChart({
             dataKey="events"
             stroke={CHART.series}
             strokeWidth={2}
-            fill="url(#trendFill)"
+            fill="rgb(var(--c-brand) / 0.1)"
             activeDot={{ r: 4, strokeWidth: 2, stroke: CHART.surface }}
           />
         </AreaChart>

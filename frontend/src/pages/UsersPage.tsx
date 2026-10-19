@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { KeyRound, Plus, UserPlus } from "lucide-react";
+import { Plus } from "@/components/icons";
 import { authApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
@@ -66,7 +66,6 @@ export function UsersPage() {
         description="Manage console accounts and roles."
         actions={
           <Button size="sm" onClick={() => setShowCreate((s) => !s)}>
-            <UserPlus className="h-3.5 w-3.5" />
             Add user
           </Button>
         }
@@ -149,7 +148,7 @@ export function UsersPage() {
                               notify("error", "Password must be at least 8 characters");
                           }}
                         >
-                          <KeyRound className="h-3.5 w-3.5" />
+                          Reset password
                         </Button>
                         {!isBootstrap && (
                           <Button

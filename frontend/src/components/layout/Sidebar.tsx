@@ -1,17 +1,5 @@
 import { NavLink } from "react-router-dom";
-import {
-  LayoutDashboard,
-  Search,
-  ClipboardCheck,
-  History,
-  ListChecks,
-  Map,
-  Network,
-  SlidersHorizontal,
-  UploadCloud,
-  Users,
-  X,
-} from "lucide-react";
+import { X } from "@/components/icons";
 import { useAuth } from "@/context/AuthContext";
 import type { Role } from "@/types/api";
 import { cn } from "@/lib/cn";
@@ -19,19 +7,18 @@ import { cn } from "@/lib/cn";
 const nav: {
   to: string;
   label: string;
-  icon: typeof LayoutDashboard;
   end?: boolean;
   role?: Role;
 }[] = [
-  { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard, end: true },
-  { to: "/businesses", label: "Business Search", icon: Search },
-  { to: "/reviews", label: "Review Queue", icon: ClipboardCheck },
-  { to: "/corrections", label: "Corrections", icon: History, role: "reviewer" },
-  { to: "/districts", label: "District Analytics", icon: Map },
-  { to: "/ingest", label: "Data Ingestion", icon: UploadCloud, role: "admin" },
-  { to: "/jobs", label: "Background Jobs", icon: ListChecks, role: "admin" },
-  { to: "/matching", label: "Matching Tuning", icon: SlidersHorizontal, role: "admin" },
-  { to: "/users", label: "Users", icon: Users, role: "admin" },
+  { to: "/dashboard", label: "Dashboard", end: true },
+  { to: "/businesses", label: "Business Search" },
+  { to: "/reviews", label: "Review Queue" },
+  { to: "/corrections", label: "Corrections", role: "reviewer" },
+  { to: "/districts", label: "District Analytics" },
+  { to: "/ingest", label: "Data Ingestion", role: "admin" },
+  { to: "/jobs", label: "Background Jobs", role: "admin" },
+  { to: "/matching", label: "Matching Tuning", role: "admin" },
+  { to: "/users", label: "Users", role: "admin" },
 ];
 
 export function Sidebar({
@@ -49,7 +36,7 @@ export function Sidebar({
       {/* backdrop (mobile only) */}
       <div
         className={cn(
-          "fixed inset-0 z-30 bg-ink/30 transition-opacity lg:hidden",
+          "fixed inset-0 z-30 bg-ink/30 lg:hidden",
           open ? "opacity-100" : "pointer-events-none opacity-0",
         )}
         onClick={onClose}
@@ -64,9 +51,6 @@ export function Sidebar({
         )}
       >
         <div className="flex h-14 items-center gap-2 border-b border-line px-4">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-brand text-white">
-            <Network className="h-4 w-4" />
-          </div>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-ink">ArthSetu</div>
             <div className="text-[11px] text-ink-subtle">BI Console</div>
@@ -81,7 +65,7 @@ export function Sidebar({
         </div>
 
         <nav className="flex-1 space-y-0.5 p-2">
-          {items.map(({ to, label, icon: Icon, end }) => (
+          {items.map(({ to, label, end }) => (
             <NavLink
               key={to}
               to={to}
@@ -89,14 +73,13 @@ export function Sidebar({
               onClick={onClose}
               className={({ isActive }) =>
                 cn(
-                  "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[13px] font-medium transition-colors",
+                  "flex items-center rounded-md px-2.5 py-2 text-[13px] font-medium",
                   isActive
-                    ? "bg-brand-soft text-brand"
-                    : "text-ink-muted hover:bg-surface-muted hover:text-ink",
+                    ? "border border-line bg-surface-muted text-ink"
+                    : "border border-transparent text-ink-muted hover:text-ink hover:underline",
                 )
               }
             >
-              <Icon className="h-4 w-4 shrink-0" />
               {label}
             </NavLink>
           ))}

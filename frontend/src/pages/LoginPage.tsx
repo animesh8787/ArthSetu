@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
-import { Eye, EyeOff, Network } from "lucide-react";
+import { Link, Navigate, useNavigate, useSearchParams } from "react-router-dom";
+import { Eye, EyeOff } from "@/components/icons";
 import { useAuth } from "@/context/AuthContext";
 import { friendlyAuthError } from "@/lib/auth";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -50,7 +50,7 @@ export function LoginPage() {
     setInfo(null);
     try {
       await resetPassword(trimmed);
-      setInfo(`Password reset email sent to ${trimmed} — check your inbox.`);
+      setInfo(`Password reset email sent to ${trimmed}. Check your inbox.`);
     } catch (err) {
       setError(friendlyAuthError(err));
     } finally {
@@ -62,9 +62,6 @@ export function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-canvas p-4">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-md bg-brand text-white">
-            <Network className="h-5 w-5" />
-          </div>
           <div>
             <div className="text-base font-semibold text-ink">ArthSetu</div>
             <div className="text-[12px] text-ink-subtle">
@@ -75,7 +72,7 @@ export function LoginPage() {
 
         <form
           onSubmit={submit}
-          className="space-y-4 rounded-lg border border-line bg-surface p-5 shadow-card"
+          className="space-y-4 rounded-md border border-line bg-surface p-5"
         >
           <div>
             <Label htmlFor="email">Email</Label>
@@ -125,12 +122,12 @@ export function LoginPage() {
           </div>
 
           {error && (
-            <p className="rounded-md bg-danger/10 px-3 py-2 text-[13px] text-danger">
+            <p className="rounded-md border border-danger px-3 py-2 text-[13px] text-danger">
               {error}
             </p>
           )}
           {info && (
-            <p className="rounded-md bg-brand/10 px-3 py-2 text-[13px] text-brand">
+            <p className="rounded-md border border-brand px-3 py-2 text-[13px] text-brand">
               {info}
             </p>
           )}
@@ -139,6 +136,11 @@ export function LoginPage() {
             Sign in
           </Button>
         </form>
+        <p className="mt-4 text-[12px] text-ink-subtle">
+          By signing in you accept the{" "}
+          <Link to="/terms" className="underline hover:text-ink">Terms</Link> and{" "}
+          <Link to="/privacy" className="underline hover:text-ink">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
   );

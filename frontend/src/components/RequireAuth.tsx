@@ -2,13 +2,13 @@ import type { ReactNode } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import type { Role } from "@/types/api";
-import { Loader2 } from "lucide-react";
+import { Spinner } from "@/components/icons";
 import { Button } from "@/components/ui/Button";
 
 function FullPageSpinner() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-canvas">
-      <Loader2 className="h-6 w-6 animate-spin text-ink-subtle" />
+      <Spinner className="h-6 w-6 animate-spin text-ink-subtle" />
     </div>
   );
 }

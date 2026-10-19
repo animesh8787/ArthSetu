@@ -6,7 +6,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { CheckCircle2, Info, X, XCircle } from "lucide-react";
+import { X } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 type ToastKind = "success" | "error" | "info";
@@ -22,10 +22,10 @@ interface ToastContextValue {
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
-const icons: Record<ToastKind, ReactNode> = {
-  success: <CheckCircle2 className="h-4 w-4 text-ok" />,
-  error: <XCircle className="h-4 w-4 text-danger" />,
-  info: <Info className="h-4 w-4 text-brand" />,
+const labels: Record<ToastKind, ReactNode> = {
+  success: <span className="text-ok">Done</span>,
+  error: <span className="text-danger">Error</span>,
+  info: <span className="text-brand">Note</span>,
 };
 
 export function ToastProvider({ children }: { children: ReactNode }) {
@@ -55,11 +55,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             key={t.id}
             role="status"
             className={cn(
-              "pointer-events-auto flex items-start gap-2.5 rounded-lg border border-line bg-surface px-3.5 py-3 shadow-pop",
-              "animate-[slideIn_.15s_ease-out]",
+              "pointer-events-auto flex items-start gap-2.5 rounded-md border border-ink-subtle bg-surface px-3.5 py-3",
             )}
           >
-            <span className="mt-0.5 shrink-0">{icons[t.kind]}</span>
+            <span className="shrink-0 text-[13px] font-semibold">{labels[t.kind]}</span>
             <p className="flex-1 text-[13px] text-ink">{t.message}</p>
             <button
               onClick={() => dismiss(t.id)}

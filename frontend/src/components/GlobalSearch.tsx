@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Search } from "lucide-react";
+import { Search } from "@/components/icons";
 
 const UBID_RE = /^ubid[-_ ]?[a-z0-9]+$/i;
 

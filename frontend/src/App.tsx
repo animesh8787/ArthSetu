@@ -3,6 +3,7 @@ import { RequireAuth } from "@/components/RequireAuth";
 import { AppShell } from "@/components/layout/AppShell";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
+import { PrivacyPage, TermsPage } from "@/pages/LegalPages";
 import { DashboardPage } from "@/pages/DashboardPage";
 import { BusinessSearchPage } from "@/pages/BusinessSearchPage";
 import { BusinessProfilePage } from "@/pages/BusinessProfilePage";
@@ -20,6 +21,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/terms" element={<TermsPage />} />
+      <Route path="/privacy" element={<PrivacyPage />} />
 
       <Route
         element={

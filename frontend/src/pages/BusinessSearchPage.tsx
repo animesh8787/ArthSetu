@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { Search, X } from "lucide-react";
+import { Search, X } from "@/components/icons";
 import { analyticsApi, businessApi } from "@/api/endpoints";
 import type { ApiError } from "@/lib/api";
 import { useUrlFilters } from "@/hooks/useUrlFilters";
@@ -223,7 +223,7 @@ export function BusinessSearchPage() {
                         <Td className="font-mono text-[12px] text-ink-muted">
                           {b.ubid}
                         </Td>
-                        <Td className="text-ink-muted">{b.district || "—"}</Td>
+                        <Td className="text-ink-muted">{b.district || "–"}</Td>
                         <Td>
                           <StatusBadge status={b.status} />
                         </Td>

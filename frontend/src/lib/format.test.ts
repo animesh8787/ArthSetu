@@ -26,7 +26,7 @@ describe("decisionMeta", () => {
     expect(decisionMeta("manual").tone).toBe("ok");
     expect(decisionMeta("review").tone).toBe("warn");
     expect(decisionMeta("rejected").tone).toBe("danger");
-    expect(decisionMeta(null).label).toBe("—");
+    expect(decisionMeta(null).label).toBe("–");
   });
 });
 
@@ -43,12 +43,12 @@ describe("titleCase", () => {
 describe("number formatting", () => {
   it("formats numbers and handles nullish", () => {
     expect(formatNumber(1234)).toBe("1,234");
-    expect(formatNumber(null)).toBe("—");
-    expect(formatNumber(undefined)).toBe("—");
+    expect(formatNumber(null)).toBe("–");
+    expect(formatNumber(undefined)).toBe("–");
   });
   it("formats percentages", () => {
     expect(formatPercent(56.357)).toBe("56.4%");
-    expect(formatPercent(null)).toBe("—");
+    expect(formatPercent(null)).toBe("–");
   });
 });
 

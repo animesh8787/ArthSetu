@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 import { Link } from "react-router-dom";
-import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "./Skeleton";
 
@@ -23,9 +22,6 @@ export function StatCard({
     <>
       <div className="flex items-center justify-between">
         <span className="text-[13px] font-medium text-ink-muted">{label}</span>
-        {to && (
-          <ArrowUpRight className="h-3.5 w-3.5 text-ink-subtle transition-colors group-hover:text-brand" />
-        )}
       </div>
       {loading ? (
         <Skeleton className="mt-2 h-8 w-20" />
@@ -46,9 +42,9 @@ export function StatCard({
   );
 
   const className = cn(
-    "group block rounded-lg border border-line bg-surface p-4 shadow-card transition-colors",
-    to && "hover:border-brand/40 hover:bg-brand-soft/30",
-    accent === "brand" && "border-l-2 border-l-brand",
+    "group block rounded-md border border-line bg-surface p-4",
+    to && "hover:border-ink-subtle",
+    accent === "brand" && "border-brand",
   );
 
   return to ? (

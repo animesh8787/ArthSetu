@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Save, SlidersHorizontal } from "lucide-react";
 import { matchingApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
@@ -19,7 +18,7 @@ import { ErrorState } from "@/components/ui/States";
 type EditableField = keyof Omit<MatchingWeights, "updated_by" | "updated_at">;
 
 const IDENTIFIER_FIELDS: { key: EditableField; label: string; hint: string }[] = [
-  { key: "gstin_weight", label: "GSTIN exact match", hint: "Unique government id — the strongest signal" },
+  { key: "gstin_weight", label: "GSTIN exact match", hint: "Unique government id, the strongest signal" },
   { key: "pan_weight", label: "PAN exact match", hint: "Same legal entity / proprietor" },
 ];
 
@@ -130,7 +129,7 @@ export function MatchingConfigPage() {
       <Card>
         <CardHeader
           title="Weights"
-          description="Started as fixed constants — now live-editable. Changes apply to every match run from this point on."
+          description="Started as fixed constants, now live-editable. Changes apply to every match run from this point on."
         />
         <CardBody className="space-y-5">
           {weightsQuery.isLoading || !draft ? (
@@ -206,7 +205,6 @@ export function MatchingConfigPage() {
                     disabled={!dirty}
                     onClick={() => save.mutate()}
                   >
-                    <Save className="h-3.5 w-3.5" />
                     Save weights
                   </Button>
                 </div>
@@ -291,7 +289,7 @@ export function MatchingConfigPage() {
       <Card>
         <CardHeader
           title="Reviewer-feedback calibration"
-          description="How review-case confidence lines up with what reviewers actually decide — use this to judge whether the thresholds above are set well."
+          description="How review-case confidence lines up with what reviewers actually decide. Use this to judge whether the thresholds above are set well."
         />
         <CardBody>
           {calibrationQuery.isLoading ? (
@@ -300,12 +298,11 @@ export function MatchingConfigPage() {
             <ErrorState onRetry={() => calibrationQuery.refetch()} />
           ) : !calibrationQuery.data?.sample_size ? (
             <p className="py-6 text-center text-[13px] text-ink-muted">
-              No review cases yet — calibration data appears once reviewers start approving or rejecting.
+              No review cases yet. Calibration data appears once reviewers start approving or rejecting.
             </p>
           ) : (
             <div className="space-y-5">
               <div className="flex items-center gap-1.5 text-[12px] text-ink-subtle">
-                <SlidersHorizontal className="h-3.5 w-3.5" />
                 {formatNumber(calibrationQuery.data.sample_size)} review case
                 {calibrationQuery.data.sample_size === 1 ? "" : "s"} sampled
               </div>
@@ -354,13 +351,13 @@ export function MatchingConfigPage() {
 
               <div className="flex flex-wrap gap-4 text-[12px] text-ink-muted">
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-ok" /> Approved
+                  <span className="h-2 w-2 rounded-sm bg-ok" /> Approved
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-danger" /> Rejected
+                  <span className="h-2 w-2 rounded-sm bg-danger" /> Rejected
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full bg-ink-subtle/40" /> Pending
+                  <span className="h-2 w-2 rounded-sm bg-ink-subtle/40" /> Pending
                 </span>
               </div>
 

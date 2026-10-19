@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Lock, RefreshCw, Scissors, MoveRight } from "lucide-react";
+import { ArrowLeft, Refresh } from "@/components/icons";
 import { businessApi, correctionsApi, statusApi } from "@/api/endpoints";
 import { queryClient } from "@/lib/queryClient";
 import type { ApiError } from "@/lib/api";
@@ -160,7 +160,7 @@ export function BusinessProfilePage() {
               {data && <StatusBadge status={data.status} />}
               {data?.status_locked && (
                 <Badge tone="brand">
-                  <Lock className="h-3 w-3" /> Pinned
+                  Pinned
                 </Badge>
               )}
             </div>
@@ -178,7 +178,7 @@ export function BusinessProfilePage() {
               onClick={() => recompute.mutate()}
               disabled={isLoading}
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <Refresh className="h-3.5 w-3.5" />
               Recompute status
             </Button>
           )}
@@ -267,7 +267,7 @@ function Field({ label, value, mono }: { label: string; value?: string | null; m
     <div>
       <dt className="text-[12px] text-ink-muted">{label}</dt>
       <dd className={mono ? "mt-0.5 font-mono text-[13px] text-ink" : "mt-0.5 text-sm text-ink"}>
-        {value || <span className="text-ink-subtle">—</span>}
+        {value || <span className="text-ink-subtle">–</span>}
       </dd>
     </div>
   );
@@ -345,14 +345,14 @@ function LinkedRecordsSection({
               return (
                 <Tr key={r.link_id}>
                   <Td>
-                    <div className="text-ink">{r.source_system ?? "—"}</div>
+                    <div className="text-ink">{r.source_system ?? "–"}</div>
                     <div className="text-[12px] text-ink-subtle">
                       {r.department ?? ""}
                     </div>
                   </Td>
                   <Td>
                     <div>
-                      <span className="text-ink">{r.extracted_name ?? "—"}</span>
+                      <span className="text-ink">{r.extracted_name ?? "–"}</span>
                       {r.external_id && (
                         <span className="ml-1.5 font-mono text-[11px] text-ink-subtle">
                           #{r.external_id}
@@ -368,7 +368,7 @@ function LinkedRecordsSection({
                     )}
                   </Td>
                   <Td className="tabular-nums text-ink-muted">
-                    {r.confidence != null ? `${Math.round(r.confidence * 100)}%` : "—"}
+                    {r.confidence != null ? `${Math.round(r.confidence * 100)}%` : "–"}
                   </Td>
                   <Td>
                     <Badge tone={dec.tone}>{dec.label}</Badge>
@@ -376,7 +376,6 @@ function LinkedRecordsSection({
                   {canReview && (
                     <Td className="text-right">
                       <Button variant="ghost" size="sm" onClick={() => onSplit(r)}>
-                        <Scissors className="h-3.5 w-3.5" />
                         Split
                       </Button>
                     </Td>
@@ -420,7 +419,7 @@ function TimelineSection({
               return (
                 <li key={e.id} className="group relative">
                   <span
-                    className="absolute -left-[21px] top-1 h-2 w-2 rounded-full ring-2 ring-surface"
+                    className="absolute -left-[21px] top-1 h-2 w-2 rounded-sm border-2 border-surface"
                     style={{ background: positive ? "#15803d" : "#b91c1c" }}
                     aria-hidden
                   />
@@ -436,15 +435,15 @@ function TimelineSection({
                           className="opacity-0 transition-opacity hover:text-brand focus:opacity-100 group-hover:opacity-100"
                           title="Reassign to another business"
                         >
-                          <MoveRight className="h-3.5 w-3.5" />
+                          Move
                         </button>
                       )}
                     </span>
                   </div>
                   {e.score != null && (
-                    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-surface-muted">
+                    <div className="mt-1 h-1 w-full overflow-hidden rounded-sm bg-surface-muted">
                       <div
-                        className="h-full rounded-full"
+                        className="h-full rounded-sm"
                         style={{
                           width: `${Math.min(Math.abs(e.score) * 100, 100)}%`,
                           background: positive ? "#15803d" : "#b91c1c",
@@ -491,7 +490,7 @@ function StatusSection({
               {data && <StatusBadge status={data.status} />}
               {data?.status_locked && (
                 <Badge tone="brand">
-                  <Lock className="h-3 w-3" /> Reviewer-pinned
+                  Reviewer-pinned
                 </Badge>
               )}
             </div>
@@ -510,7 +509,7 @@ function StatusSection({
             {result && (
               <div className="mt-3 rounded-md border border-line bg-surface-muted p-3">
                 <div className="text-[12px] font-medium text-ink-muted">
-                  Why — confidence {result.confidence.toFixed(2)}
+                  Why: confidence {result.confidence.toFixed(2)}
                 </div>
                 <ul className="mt-1.5 space-y-1 text-[12px] text-ink-muted">
                   {result.reasons.slice(0, 6).map((r, i) => (
@@ -560,7 +559,6 @@ function StatusSection({
                   </Button>
                 ) : (
                   <Button variant="ghost" size="sm" onClick={onOverride}>
-                    <Lock className="h-3.5 w-3.5" />
                     Override status
                   </Button>
                 )}

@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap");
+@import "@fontsource-variable/public-sans";
 
 @tailwind base;
 @tailwind components;
@@ -7,10 +7,10 @@
 @layer base {
   :root {
     /* neutrals */
-    --c-canvas: 246 248 250; /* #f6f8fa */
-    --c-surface: 255 255 255;
-    --c-surface-muted: 248 250 252; /* slate-50 */
-    --c-line: 226 232 240; /* slate-200 */
+    --c-canvas: 238 239 235; /* #eeefeb, warm paper */
+    --c-surface: 249 249 246; /* #f9f9f6, never pure white */
+    --c-surface-muted: 242 243 239;
+    --c-line: 208 211 203;
     --c-ink: 15 23 42; /* slate-900 */
     --c-ink-muted: 71 85 105; /* slate-600 */
     --c-ink-subtle: 148 163 184; /* slate-400 */
@@ -18,7 +18,7 @@
     /* brand */
     --c-brand: 30 79 216; /* #1e4fd8 */
     --c-brand-hover: 26 65 189;
-    --c-brand-soft: 234 240 253;
+    --c-brand-soft: 232 235 229; /* neutral tint, not a blue wash */
 
     /* status (text / badges — tuned for contrast) */
     --c-ok: 21 128 61; /* green-700 */
@@ -31,7 +31,7 @@
     --chart-dormant: 202 138 4; /* #ca8a04 */
     --chart-closed: 185 28 28; /* #b91c1c */
     --chart-unknown: 100 116 139; /* #64748b */
-    --chart-grid: 226 232 240;
+    --chart-grid: 208 211 203;
     --chart-axis: 137 135 129;
   }
 
@@ -55,21 +55,10 @@
   }
 }
 
-@keyframes slideIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @layer components {
   .field {
     @apply h-9 w-full rounded-md border border-line bg-surface px-3 text-sm text-ink
       placeholder:text-ink-subtle focus:border-brand focus:outline-none
-      focus:ring-2 focus:ring-brand/20 disabled:cursor-not-allowed disabled:opacity-60;
+      disabled:cursor-not-allowed disabled:opacity-60;
   }
 }
